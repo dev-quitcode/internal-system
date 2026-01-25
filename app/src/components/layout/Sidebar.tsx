@@ -72,15 +72,15 @@ export default function Sidebar() {
   const NavContent = () => (
     <>
       {/* Logo */}
-      <div className="flex items-center gap-3 px-5 py-6">
-        <div className="w-10 h-10 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/25">
-          <LayoutGrid className="w-5 h-5 text-white" />
+      <div className="flex items-center gap-3 px-4 py-4">
+        <div className="w-9 h-9 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/25">
+          <LayoutGrid className="w-4 h-4 text-white" />
         </div>
-        <span className="text-xl font-bold text-gray-900">QuitCode</span>
+        <span className="text-lg font-bold text-gray-900">QuitCode</span>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-2 overflow-y-auto">
+      <nav className="flex-1 px-2 py-2 overflow-y-auto">
         <ul className="space-y-1">
           {navigation.map((item) => {
             const Icon = item.icon
@@ -94,8 +94,8 @@ export default function Sidebar() {
                     <button
                       onClick={() => toggleExpanded(item.name)}
                       className={`
-                        w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl
-                        text-sm font-medium transition-all duration-200
+                        w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg
+                        text-[13px] font-medium transition-all duration-200
                         ${active
                           ? 'bg-cyan-50 text-cyan-700'
                           : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
@@ -103,23 +103,23 @@ export default function Sidebar() {
                       `}
                     >
                       <div className="flex items-center gap-3">
-                        <Icon className="w-5 h-5" />
+                        <Icon className="w-4 h-4" />
                         <span>{item.name}</span>
                       </div>
                       {expanded ? (
-                        <ChevronDown className="w-4 h-4" />
+                        <ChevronDown className="w-3.5 h-3.5" />
                       ) : (
-                        <ChevronRight className="w-4 h-4" />
+                        <ChevronRight className="w-3.5 h-3.5" />
                       )}
                     </button>
                     {expanded && (
-                      <ul className="mt-1 ml-4 pl-4 border-l-2 border-gray-200 space-y-1">
+                      <ul className="mt-1 ml-3 pl-3 border-l-2 border-gray-200 space-y-1">
                         {item.children.map((child) => (
                           <li key={child.href}>
                             <Link
                               href={child.href}
                               className={`
-                                block px-4 py-2.5 rounded-lg text-sm transition-all duration-200
+                                block px-3 py-2 rounded-lg text-[12px] transition-all duration-200
                                 ${pathname === child.href
                                   ? 'text-cyan-700 bg-cyan-50 font-medium'
                                   : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
@@ -138,8 +138,8 @@ export default function Sidebar() {
                   <Link
                     href={item.href}
                     className={`
-                      flex items-center gap-3 px-4 py-3 rounded-xl
-                      text-sm font-medium transition-all duration-200
+                      flex items-center gap-3 px-3 py-2.5 rounded-lg
+                      text-[13px] font-medium transition-all duration-200
                       ${active
                         ? 'bg-cyan-50 text-cyan-700'
                         : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
@@ -147,7 +147,7 @@ export default function Sidebar() {
                     `}
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
-                    <Icon className="w-5 h-5" />
+                    <Icon className="w-4 h-4" />
                     <span>{item.name}</span>
                   </Link>
                 )}
@@ -158,12 +158,12 @@ export default function Sidebar() {
       </nav>
 
       {/* Sign Out */}
-      <div className="p-3 border-t border-gray-200">
+      <div className="p-2 border-t border-gray-200">
         <button
           onClick={handleSignOut}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 transition-all duration-200"
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 transition-all duration-200"
         >
-          <LogOut className="w-5 h-5" />
+          <LogOut className="w-4 h-4" />
           <span>Sign Out</span>
         </button>
       </div>
@@ -175,9 +175,9 @@ export default function Sidebar() {
       {/* Mobile menu button */}
       <button
         onClick={() => setIsMobileMenuOpen(true)}
-        className="lg:hidden fixed top-4 left-4 z-50 p-2.5 bg-white rounded-xl shadow-lg border border-gray-200"
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-lg border border-gray-200"
       >
-        <Menu className="w-5 h-5 text-gray-600" />
+        <Menu className="w-4 h-4 text-gray-600" />
       </button>
 
       {/* Mobile overlay */}
@@ -191,7 +191,7 @@ export default function Sidebar() {
       {/* Mobile sidebar */}
       <aside
         className={`
-          lg:hidden fixed inset-y-0 left-0 z-50 w-72 bg-white shadow-2xl
+          lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-2xl
           transform transition-transform duration-300 ease-out
           ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
@@ -200,7 +200,7 @@ export default function Sidebar() {
           onClick={() => setIsMobileMenuOpen(false)}
           className="absolute top-4 right-4 p-2 rounded-lg hover:bg-gray-100 transition-colors"
         >
-          <X className="w-5 h-5 text-gray-500" />
+          <X className="w-4 h-4 text-gray-500" />
         </button>
         <div className="flex flex-col h-full">
           <NavContent />
@@ -208,7 +208,7 @@ export default function Sidebar() {
       </aside>
 
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-72 lg:fixed lg:inset-y-0 lg:border-r lg:border-gray-200 lg:bg-white">
+      <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:fixed lg:inset-y-0 lg:border-r lg:border-gray-200 lg:bg-white">
         <NavContent />
       </aside>
     </>

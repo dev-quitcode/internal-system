@@ -99,7 +99,6 @@ export default function ProjectsPage() {
     date: string
     hours: number
     description: string
-    is_billable: boolean
   }) => {
     const supabase = createClient()
     
