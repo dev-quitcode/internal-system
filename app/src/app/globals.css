@@ -6,7 +6,7 @@
 :root {
   --primary: #06B6D4;
   --primary-hover: #0891B2;
-  --primary-light: #ECFEFF;
+  --primary-light: #F2FBFF;
 }
 
 body {
@@ -88,6 +88,11 @@ html {
 /* Glass effect */
 .glass {
   @apply bg-white/80 backdrop-blur-xl;
+}
+
+/* Override cyan-50 highlight background to match brand */
+.bg-cyan-50 {
+  background-color: rgb(242, 251, 255);
 }
 
 /* Card hover lift */

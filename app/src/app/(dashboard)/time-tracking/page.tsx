@@ -1,17 +1,30 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Calendar, Clock, Search, Edit2, Trash2, ExternalLink, X } from 'lucide-react'
+import { Calendar, Clock, Search, Edit2, Trash2, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import {
+  addDays,
+  addMonths,
+  endOfDay,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameDay,
+  isSameMonth,
+  isToday,
+  startOfDay,
+  startOfMonth,
+  startOfWeek,
+  subMonths,
+} from 'date-fns'
 import { createClient } from '@/lib/supabase/client'
 import { useEmployee } from '@/lib/hooks/useEmployee'
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns'
 
 interface TimeEntry {
   id: number
   date: string
   hours: number
   description: string
-  is_billable: boolean
   created_at: string
   tasks: {
     id: number
@@ -29,38 +42,64 @@ export default function TimeTrackingPage() {
   const [entries, setEntries] = useState<TimeEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'custom'>('week')
+  const [dateFilter, setDateFilter] = useState<'today' | 'week' | 'month' | 'custom'>('today')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [customStartDate, setCustomStartDate] = useState('')
   const [customEndDate, setCustomEndDate] = useState('')
   const [showDatePicker, setShowDatePicker] = useState(false)
+  const [isStartCalendarOpen, setIsStartCalendarOpen] = useState(false)
+  const [isEndCalendarOpen, setIsEndCalendarOpen] = useState(false)
+  const [startCalendarMonth, setStartCalendarMonth] = useState<Date>(new Date())
+  const [endCalendarMonth, setEndCalendarMonth] = useState<Date>(new Date())
 
-  useEffect(() => {
-    if (employee) {
-      loadEntries()
-    }
-  }, [employee, dateFilter, customStartDate, customEndDate])
-
-  useEffect(() => {
-    // Set date range based on filter
+  const computeDateRange = () => {
     const today = new Date()
     if (dateFilter === 'today') {
-      setStartDate(format(startOfDay(today), 'yyyy-MM-dd'))
-      setEndDate(format(endOfDay(today), 'yyyy-MM-dd'))
-    } else if (dateFilter === 'week') {
-      setStartDate(format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'))
-      setEndDate(format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'))
-    } else if (dateFilter === 'month') {
-      setStartDate(format(startOfMonth(today), 'yyyy-MM-dd'))
-      setEndDate(format(endOfMonth(today), 'yyyy-MM-dd'))
-    } else if (dateFilter === 'custom') {
-      setStartDate(customStartDate)
-      setEndDate(customEndDate || customStartDate)
+      return {
+        start: format(startOfDay(today), 'yyyy-MM-dd'),
+        end: format(endOfDay(today), 'yyyy-MM-dd'),
+      }
     }
-  }, [dateFilter, customStartDate, customEndDate])
+    if (dateFilter === 'week') {
+      return {
+        start: format(startOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+        end: format(endOfWeek(today, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+      }
+    }
+    if (dateFilter === 'month') {
+      return {
+        start: format(startOfMonth(today), 'yyyy-MM-dd'),
+        end: format(endOfMonth(today), 'yyyy-MM-dd'),
+      }
+    }
+    return {
+      start: customStartDate,
+      end: customEndDate || customStartDate,
+    }
+  }
 
-  const loadEntries = async () => {
+  const buildCalendarDays = (month: Date) => {
+    const start = startOfWeek(startOfMonth(month), { weekStartsOn: 1 })
+    const end = endOfMonth(month)
+    const days: Date[] = []
+    let current = start
+    while (current <= end || days.length % 7 !== 0) {
+      days.push(current)
+      current = addDays(current, 1)
+    }
+    return days
+  }
+
+  useEffect(() => {
+    if (!employee) return
+    const { start, end } = computeDateRange()
+    setStartDate(start)
+    setEndDate(end)
+    loadEntries(start, end)
+  }, [employee, dateFilter, customStartDate, customEndDate])
+
+  const loadEntries = async (rangeStart?: string, rangeEnd?: string) => {
     if (!employee) return
 
     setIsLoading(true)
@@ -74,7 +113,6 @@ export default function TimeTrackingPage() {
           date,
           hours,
           description,
-          is_billable,
           created_at,
           tasks (
             id,
@@ -91,8 +129,8 @@ export default function TimeTrackingPage() {
         .order('created_at', { ascending: false })
 
       // Apply date filter
-      if (startDate && endDate) {
-        query = query.gte('date', startDate).lte('date', endDate)
+      if (rangeStart && rangeEnd) {
+        query = query.gte('date', rangeStart).lte('date', rangeEnd)
       }
 
       const { data, error } = await query
@@ -129,16 +167,28 @@ export default function TimeTrackingPage() {
   const filteredEntries = entries.filter((entry) => {
     const searchLower = searchQuery.toLowerCase()
     return (
-      entry.tasks.projects.name.toLowerCase().includes(searchLower) ||
-      entry.tasks.name.toLowerCase().includes(searchLower) ||
+      entry.tasks?.projects?.name?.toLowerCase().includes(searchLower) ||
+      entry.tasks?.name?.toLowerCase().includes(searchLower) ||
       entry.description?.toLowerCase().includes(searchLower) ||
-      `P-${entry.tasks.projects.id}`.toLowerCase().includes(searchLower) ||
-      `T-${entry.tasks.id}`.toLowerCase().includes(searchLower)
+      (entry.tasks?.projects?.id ? `P-${entry.tasks.projects.id}`.toLowerCase().includes(searchLower) : false) ||
+      (entry.tasks?.id ? `T-${entry.tasks.id}`.toLowerCase().includes(searchLower) : false)
     )
   })
 
+  const normalizeKey = (value: string | null) => {
+    if (!value) return ''
+    return value
+      .toString()
+      .trim()
+      .replace(/_/g, ' ')
+      .replace(/\s+/g, ' ')
+      .toUpperCase()
+  }
+
   const totalHours = filteredEntries.reduce((sum, entry) => sum + entry.hours, 0)
-  const externalHours = filteredEntries.filter(e => e.is_billable).reduce((sum, entry) => sum + entry.hours, 0)
+  const externalHours = filteredEntries
+    .filter((entry) => normalizeKey(entry.tasks.task_type) === 'EXTERNAL')
+    .reduce((sum, entry) => sum + entry.hours, 0)
   const internalHours = totalHours - externalHours
 
   const handleApplyCustomDates = () => {
@@ -151,7 +201,7 @@ export default function TimeTrackingPage() {
   const handleClearCustomDates = () => {
     setCustomStartDate('')
     setCustomEndDate('')
-    setDateFilter('week')
+    setDateFilter('today')
     setShowDatePicker(false)
   }
 
@@ -284,30 +334,144 @@ export default function TimeTrackingPage() {
                   </div>
 
                   <div className="space-y-3">
-                    <div>
+                    <div className="relative">
                       <label className="block text-xs font-medium text-gray-700 mb-1.5">
                         Start Date
                       </label>
-                      <input
-                        type="date"
-                        value={customStartDate}
-                        onChange={(e) => setCustomStartDate(e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all"
-                      />
+                      <div className="relative">
+                        <button
+                          onClick={() => setIsStartCalendarOpen((prev) => !prev)}
+                          className="w-full text-left px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[rgb(10_194_255)]/20 focus:border-[rgb(10_194_255)]/40 transition-all bg-white"
+                        >
+                          {customStartDate ? format(new Date(customStartDate), 'dd.MM.yyyy') : 'Select date'}
+                        </button>
+                        <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      </div>
+                      {isStartCalendarOpen && (
+                        <div className="absolute z-50 mt-2 w-full min-w-[260px] rounded-2xl border border-gray-200 bg-white shadow-xl p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <button
+                              onClick={() => setStartCalendarMonth((prev) => subMonths(prev, 1))}
+                              className="p-2 rounded-lg hover:bg-gray-100 text-gray-600"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            <div className="text-sm font-semibold text-gray-900">
+                              {format(startCalendarMonth, 'MMMM yyyy')}
+                            </div>
+                            <button
+                              onClick={() => setStartCalendarMonth((prev) => addMonths(prev, 1))}
+                              className="p-2 rounded-lg hover:bg-gray-100 text-gray-600"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-7 gap-1 text-[11px] font-medium text-gray-500 mb-1">
+                            {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((label) => (
+                              <div key={label} className="text-center py-1">
+                                {label}
+                              </div>
+                            ))}
+                          </div>
+                          <div className="grid grid-cols-7 gap-1">
+                            {buildCalendarDays(startCalendarMonth).map((day) => {
+                              const isCurrentMonth = isSameMonth(day, startCalendarMonth)
+                              const isSelected = customStartDate && isSameDay(day, new Date(customStartDate))
+                              return (
+                                <button
+                                  key={day.toISOString()}
+                                  onClick={() => {
+                                    setCustomStartDate(format(day, 'yyyy-MM-dd'))
+                                    if (!customEndDate) setCustomEndDate('')
+                                    setIsStartCalendarOpen(false)
+                                  }}
+                                  className={`h-9 rounded-lg text-[12px] font-medium transition-colors ${
+                                    isSelected
+                                      ? 'bg-[rgb(10_194_255)] text-white'
+                                      : isToday(day)
+                                        ? 'bg-[rgb(10_194_255)]/10 text-gray-900'
+                                        : isCurrentMonth
+                                          ? 'text-gray-900 hover:bg-gray-100'
+                                          : 'text-gray-400 hover:bg-gray-100'
+                                  }`}
+                                >
+                                  {day.getDate()}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
-                    <div>
+                    <div className="relative">
                       <label className="block text-xs font-medium text-gray-700 mb-1.5">
                         End Date (Optional)
                       </label>
-                      <input
-                        type="date"
-                        value={customEndDate}
-                        onChange={(e) => setCustomEndDate(e.target.value)}
-                        min={customStartDate}
-                        disabled={!customStartDate}
-                        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500/20 focus:border-cyan-500 transition-all disabled:bg-gray-50 disabled:cursor-not-allowed"
-                      />
+                      <div className="relative">
+                        <button
+                          onClick={() => setIsEndCalendarOpen((prev) => !prev)}
+                          className="w-full text-left px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[rgb(10_194_255)]/20 focus:border-[rgb(10_194_255)]/40 transition-all bg-white disabled:bg-gray-50 disabled:cursor-not-allowed"
+                          disabled={!customStartDate}
+                        >
+                          {customEndDate ? format(new Date(customEndDate), 'dd.MM.yyyy') : 'Select date'}
+                        </button>
+                        <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      </div>
+                      {isEndCalendarOpen && (
+                        <div className="absolute z-50 mt-2 w-full min-w-[260px] rounded-2xl border border-gray-200 bg-white shadow-xl p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <button
+                              onClick={() => setEndCalendarMonth((prev) => subMonths(prev, 1))}
+                              className="p-2 rounded-lg hover:bg-gray-100 text-gray-600"
+                            >
+                              <ChevronLeft className="w-4 h-4" />
+                            </button>
+                            <div className="text-sm font-semibold text-gray-900">
+                              {format(endCalendarMonth, 'MMMM yyyy')}
+                            </div>
+                            <button
+                              onClick={() => setEndCalendarMonth((prev) => addMonths(prev, 1))}
+                              className="p-2 rounded-lg hover:bg-gray-100 text-gray-600"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-7 gap-1 text-[11px] font-medium text-gray-500 mb-1">
+                            {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((label) => (
+                              <div key={label} className="text-center py-1">
+                                {label}
+                              </div>
+                            ))}
+                          </div>
+                          <div className="grid grid-cols-7 gap-1">
+                            {buildCalendarDays(endCalendarMonth).map((day) => {
+                              const isCurrentMonth = isSameMonth(day, endCalendarMonth)
+                              const isSelected = customEndDate && isSameDay(day, new Date(customEndDate))
+                              return (
+                                <button
+                                  key={day.toISOString()}
+                                  onClick={() => {
+                                    setCustomEndDate(format(day, 'yyyy-MM-dd'))
+                                    setIsEndCalendarOpen(false)
+                                  }}
+                                  className={`h-9 rounded-lg text-[12px] font-medium transition-colors ${
+                                    isSelected
+                                      ? 'bg-[rgb(10_194_255)] text-white'
+                                      : isToday(day)
+                                        ? 'bg-[rgb(10_194_255)]/10 text-gray-900'
+                                        : isCurrentMonth
+                                          ? 'text-gray-900 hover:bg-gray-100'
+                                          : 'text-gray-400 hover:bg-gray-100'
+                                  }`}
+                                >
+                                  {day.getDate()}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      )}
                       <p className="text-xs text-gray-500 mt-1">Leave empty for single day</p>
                     </div>
 
@@ -397,52 +561,37 @@ export default function TimeTrackingPage() {
                 {filteredEntries.map((entry) => (
                   <tr key={entry.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-4 py-3">
-                      <span className="text-sm text-gray-900">
+                      <span className="text-[12px] text-gray-900 whitespace-nowrap">
                         {format(new Date(entry.date), 'MMM dd, yyyy')}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-cyan-600 bg-cyan-50 px-1.5 py-0.5 rounded">
-                          P-{entry.tasks.projects.id}
-                        </span>
-                        <span className="text-sm font-medium text-gray-900">
-                          {entry.tasks.projects.name}
-                        </span>
-                      </div>
+                      <span className="text-[12px] text-gray-900">
+                        P-{entry.tasks.projects.id} {entry.tasks.projects.name}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-cyan-600 bg-cyan-50 px-1.5 py-0.5 rounded">
-                          T-{entry.tasks.id}
-                        </span>
-                        <span className="text-sm text-gray-700">{entry.tasks.name}</span>
-                      </div>
+                      <span className="text-[12px] text-gray-700">
+                        T-{entry.tasks.id} {entry.tasks.name}
+                      </span>
                     </td>
                     <td className="px-4 py-3">
-                      <p className="text-sm text-gray-600 max-w-xs truncate">
+                      <p className="text-[12px] text-gray-600 max-w-xs truncate">
                         {entry.description || '-'}
                       </p>
                     </td>
                     <td className="px-4 py-3">
                       <span className={`
-                        inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full
-                        ${entry.is_billable 
-                          ? 'bg-cyan-50 text-cyan-700' 
-                          : 'bg-gray-100 text-gray-700'}
+                        inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full
+                        ${normalizeKey(entry.tasks.task_type) === 'EXTERNAL'
+                          ? 'bg-[rgb(10_194_255)] text-white'
+                          : 'bg-[rgb(235_235_240)] text-gray-700'}
                       `}>
-                        {entry.is_billable ? (
-                          <>
-                            <ExternalLink className="w-3 h-3" />
-                            Billable
-                          </>
-                        ) : (
-                          'Internal'
-                        )}
+                        {normalizeKey(entry.tasks.task_type) === 'EXTERNAL' ? 'External' : 'Internal'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <span className="text-sm font-semibold text-gray-900">
+                      <span className="text-[12px] text-gray-900">
                         {entry.hours.toFixed(2)}h
                       </span>
                     </td>

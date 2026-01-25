@@ -97,7 +97,7 @@ export default function Sidebar() {
                         w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg
                         text-[13px] font-medium transition-all duration-200
                         ${active
-                          ? 'bg-cyan-50 text-cyan-700'
+                          ? 'bg-cyan-50 text-cyan-700 border border-cyan-200'
                           : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                         }
                       `}
@@ -141,7 +141,7 @@ export default function Sidebar() {
                       flex items-center gap-3 px-3 py-2.5 rounded-lg
                       text-[13px] font-medium transition-all duration-200
                       ${active
-                        ? 'bg-cyan-50 text-cyan-700'
+                        ? 'bg-cyan-50 text-cyan-700 border border-cyan-200'
                         : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                       }
                     `}
