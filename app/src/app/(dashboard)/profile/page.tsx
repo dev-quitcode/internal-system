@@ -303,15 +303,29 @@ export default function ProfilePage() {
           .eq('id', employee.position_id)
           .maybeSingle()
         setPositionName(data?.name ?? null)
+      } else {
+        const { data: positionRows } = await supabase
+          .from('employee_position_history')
+          .select('position_id, positions ( name )')
+          .eq('employee_id', employee.id)
+          .order('start_date', { ascending: false })
+
+        const names = (positionRows || [])
+          .map((row) => (row as { positions?: { name?: string } }).positions?.name)
+          .filter(Boolean) as string[]
+        setPositionName(names.length ? Array.from(new Set(names)).join(', ') : null)
       }
-      if (employee.team_id) {
-        const { data } = await supabase
-          .from('teams')
-          .select('name')
-          .eq('id', employee.team_id)
-          .maybeSingle()
-        setTeamName(data?.name ?? null)
-      }
+
+      const { data: teamRows } = await supabase
+        .from('team_employees')
+        .select('team_id, teams ( name )')
+        .eq('employee_id', employee.id)
+        .order('start_date', { ascending: false })
+
+      const teamNames = (teamRows || [])
+        .map((row) => (row as { teams?: { name?: string } }).teams?.name)
+        .filter(Boolean) as string[]
+      setTeamName(teamNames.length ? Array.from(new Set(teamNames)).join(', ') : null)
     }
 
     loadMeta()
