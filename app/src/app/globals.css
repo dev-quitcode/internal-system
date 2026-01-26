@@ -124,3 +124,48 @@ input[type="date"]:disabled::-webkit-datetime-edit-day-field,
 input[type="date"]:disabled::-webkit-datetime-edit-year-field {
   color: #9CA3AF;
 }
+
+.tiptap-editor .ProseMirror:focus,
+.tiptap-editor .ProseMirror:focus-visible,
+.tiptap-editor .ProseMirror-focused {
+  outline: none;
+  box-shadow: none;
+}
+
+.tiptap-editor .ProseMirror {
+  min-height: 260px;
+  height: 100%;
+}
+
+.tiptap-editor .ProseMirror ul,
+.tiptap-editor .ProseMirror ol {
+  padding-left: 1.1rem;
+  margin: 0;
+}
+
+.tiptap-editor .ProseMirror ul {
+  list-style: disc;
+}
+
+.tiptap-editor .ProseMirror ol {
+  list-style: decimal;
+}
+
+.tiptap-editor .ProseMirror li {
+  margin: 0;
+}
+
+.tiptap-editor .ProseMirror li > p {
+  margin: 0;
+}
+
+.tiptap-editor .ProseMirror li::marker {
+  font-size: inherit;
+}
+
+.tiptap-editor .ProseMirror ul ul,
+.tiptap-editor .ProseMirror ol ol,
+.tiptap-editor .ProseMirror ul ol,
+.tiptap-editor .ProseMirror ol ul {
+  margin: 0;
+}

@@ -33,6 +33,8 @@ const navigation: NavItem[] = [
   { name: 'Leaves', href: '/leaves', icon: Calendar },
   { name: 'Profile', href: '/profile', icon: User },
   { name: 'Team', href: '/team', icon: Users },
+  { name: 'Academy', href: '/academy', icon: Lightbulb },
+  { name: 'Academy Settings', href: '/academy-settings', icon: FileText },
   {
     name: 'Policies',
     href: '/policies',
@@ -60,6 +62,8 @@ export default function Sidebar() {
 
   const isActive = (href: string) => {
     if (href === '/projects') return pathname === '/projects' || pathname === '/'
+    if (href === '/academy') return pathname === '/academy'
+    if (href === '/academy-settings') return pathname.startsWith('/academy-settings')
     return pathname.startsWith(href)
   }
 

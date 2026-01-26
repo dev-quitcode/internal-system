@@ -78,7 +78,6 @@ function CustomSelect({
                 }}
                 className={`
                   w-full text-left px-3 py-2 rounded-xl text-[12px] font-medium text-gray-900
-                  hover:bg-gray-50
                   ${optionClassName}
                 `}
               >
@@ -204,7 +203,6 @@ export default function ProjectCard({ project, onLogTime }: ProjectCardProps) {
       })
 
       const enrichedTasks = allTasks
-        .filter((task) => normalizeKey(task.status) !== 'ARCHIVE')
         .map((task) => ({
           ...task,
           trackedHours: hoursByTask.get(task.id) || 0,
@@ -483,6 +481,7 @@ export default function ProjectCard({ project, onLogTime }: ProjectCardProps) {
                             )
                             updateTaskField(task.id, { status: nextStatus }, previousTask)
                           }}
+                          optionClassName="bg-[rgb(235_235_240)] text-gray-600"
                           buttonClassName={`
                             px-3 py-1.5 text-[12px] font-medium rounded-md whitespace-nowrap text-gray-900
                             ${getTaskStatusStyle(task.status)}
@@ -503,6 +502,7 @@ export default function ProjectCard({ project, onLogTime }: ProjectCardProps) {
                             )
                             updateTaskField(task.id, { priority: nextPriority }, previousTask)
                           }}
+                          optionClassName="bg-[rgb(235_235_240)] text-gray-600"
                           buttonClassName={`
                             px-3 py-1.5 text-[12px] font-medium rounded-md whitespace-nowrap text-gray-900
                             ${getPriorityStyle(task.priority)}
