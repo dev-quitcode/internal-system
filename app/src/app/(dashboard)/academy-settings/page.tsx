@@ -116,12 +116,20 @@ export default function AcademySettingsPage() {
   const [editingPageId, setEditingPageId] = useState<number | null>(null)
   const [editingVersionNumber, setEditingVersionNumber] = useState<number>(0)
   const [isAlignMenuOpen, setIsAlignMenuOpen] = useState(false)
+  const [toolbarState, setToolbarState] = useState({
+    fontSize: '14px',
+    bold: false,
+    italic: false,
+    underline: false,
+    bulletList: false,
+    orderedList: false,
+  })
 
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
       StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
+        heading: false,
       }),
       Link.configure({ openOnClick: true }),
       Image,
@@ -149,6 +157,32 @@ export default function AcademySettingsPage() {
     () => programs.find((program) => program.id === selectedProgramId) ?? null,
     [programs, selectedProgramId]
   )
+
+  useEffect(() => {
+    if (!editor) return
+    const updateToolbar = () => {
+      const fontSize =
+        editor.getAttributes('textStyle').fontSize ||
+        editor.getAttributes('listItem').fontSize ||
+        editor.getAttributes('paragraph').fontSize ||
+        '14px'
+      setToolbarState({
+        fontSize,
+        bold: editor.isActive('bold'),
+        italic: editor.isActive('italic'),
+        underline: editor.isActive('underline'),
+        bulletList: editor.isActive('bulletList'),
+        orderedList: editor.isActive('orderedList'),
+      })
+    }
+    updateToolbar()
+    editor.on('selectionUpdate', updateToolbar)
+    editor.on('transaction', updateToolbar)
+    return () => {
+      editor.off('selectionUpdate', updateToolbar)
+      editor.off('transaction', updateToolbar)
+    }
+  }, [editor])
 
   const programsForSelectedType = useMemo(
     () => programs.filter((program) => program.type_id === selectedTypeId),
@@ -395,11 +429,13 @@ export default function AcademySettingsPage() {
                       </div>
 
                       <div className="border-t border-gray-200 px-6 py-3 flex flex-wrap items-center gap-4">
-                        <div className="flex items-center gap-3 text-gray-500 text-[12px] font-medium">
+                        <div className="flex items-center gap-1 text-gray-500 text-[12px] font-medium">
                           <button
                             type="button"
                             onClick={() => editor?.chain().focus().toggleBold().run()}
-                            className="hover:text-gray-900"
+                            className={`w-7 h-7 inline-flex items-center justify-center rounded-md hover:text-gray-900 hover:bg-gray-100 ${
+                              toolbarState.bold ? 'bg-gray-100 text-gray-900' : ''
+                            }`}
                             title="Bold"
                           >
                             B
@@ -407,7 +443,9 @@ export default function AcademySettingsPage() {
                           <button
                             type="button"
                             onClick={() => editor?.chain().focus().toggleItalic().run()}
-                            className="hover:text-gray-900 italic"
+                            className={`w-7 h-7 inline-flex items-center justify-center rounded-md hover:text-gray-900 hover:bg-gray-100 italic ${
+                              toolbarState.italic ? 'bg-gray-100 text-gray-900' : ''
+                            }`}
                             title="Italic"
                           >
                             I
@@ -415,7 +453,9 @@ export default function AcademySettingsPage() {
                           <button
                             type="button"
                             onClick={() => editor?.chain().focus().toggleUnderline().run()}
-                            className="hover:text-gray-900 underline"
+                            className={`w-7 h-7 inline-flex items-center justify-center rounded-md hover:text-gray-900 hover:bg-gray-100 underline ${
+                              toolbarState.underline ? 'bg-gray-100 text-gray-900' : ''
+                            }`}
                             title="Underline"
                           >
                             U
@@ -423,7 +463,9 @@ export default function AcademySettingsPage() {
                           <button
                             type="button"
                             onClick={() => editor?.chain().focus().toggleBulletList().run()}
-                            className="hover:text-gray-900 inline-flex items-center"
+                            className={`w-7 h-7 inline-flex items-center justify-center rounded-md hover:text-gray-900 hover:bg-gray-100 ${
+                              toolbarState.bulletList ? 'bg-gray-100 text-gray-900' : ''
+                            }`}
                             title="Bullet list"
                           >
                             <List className="w-4 h-4" />
@@ -431,7 +473,9 @@ export default function AcademySettingsPage() {
                           <button
                             type="button"
                             onClick={() => editor?.chain().focus().toggleOrderedList().run()}
-                            className="hover:text-gray-900 inline-flex items-center"
+                            className={`w-7 h-7 inline-flex items-center justify-center rounded-md hover:text-gray-900 hover:bg-gray-100 ${
+                              toolbarState.orderedList ? 'bg-gray-100 text-gray-900' : ''
+                            }`}
                             title="Numbered list"
                           >
                             <ListOrdered className="w-4 h-4" />
@@ -442,7 +486,7 @@ export default function AcademySettingsPage() {
                           <button
                             type="button"
                             onClick={() => setIsAlignMenuOpen((prev) => !prev)}
-                            className="inline-flex items-center gap-2 text-gray-500 text-[12px] font-medium hover:text-gray-900"
+                            className="w-9 h-7 inline-flex items-center justify-center gap-1 text-gray-500 text-[12px] font-medium rounded-md hover:text-gray-900 hover:bg-gray-100"
                             title="Alignment"
                           >
                             <AlignmentIcon className="w-4 h-4" />
@@ -478,29 +522,7 @@ export default function AcademySettingsPage() {
                         <div className="h-4 w-px bg-gray-200" />
                         <div className="flex items-center gap-3 text-gray-500 text-[12px] font-medium">
                           <select
-                            value={editor?.getAttributes('heading').level ?? 0}
-                            onChange={(event) => {
-                              const level = Number(event.target.value)
-                              if (!level) {
-                                editor?.chain().focus().setParagraph().run()
-                              } else {
-                                editor?.chain().focus().toggleHeading({ level }).run()
-                              }
-                            }}
-                            className="border border-gray-200 rounded-md px-2 py-1 text-[12px] text-gray-700 bg-white"
-                          >
-                            <option value={0}>Normal</option>
-                            <option value={1}>H1</option>
-                            <option value={2}>H2</option>
-                            <option value={3}>H3</option>
-                          </select>
-                          <select
-                            value={
-                              editor?.getAttributes('listItem').fontSize ||
-                              editor?.getAttributes('paragraph').fontSize ||
-                              editor?.getAttributes('textStyle').fontSize ||
-                              '14px'
-                            }
+                            value={toolbarState.fontSize}
                             onChange={(event) => {
                               const size = event.target.value
                               if (!size) {
