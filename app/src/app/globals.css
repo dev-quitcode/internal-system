@@ -171,6 +171,40 @@ input[type="date"]:disabled::-webkit-datetime-edit-year-field {
   text-underline-offset: 2px;
 }
 
+.tiptap-editor .ProseMirror pre {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.tiptap-editor .ProseMirror pre code {
+  background: transparent;
+  padding: 0;
+  color: #1f2937;
+}
+
+.tiptap-editor .ProseMirror .hljs-attr {
+  color: #1d4ed8;
+}
+
+.tiptap-editor .ProseMirror .hljs-string {
+  color: #0f766e;
+}
+
+.tiptap-editor .ProseMirror .hljs-number,
+.tiptap-editor .ProseMirror .hljs-literal {
+  color: #b45309;
+}
+
+.tiptap-editor .ProseMirror .hljs-punctuation {
+  color: #6b7280;
+}
+
 .tiptap-editor .ProseMirror ol li {
   counter-increment: item;
   position: relative;

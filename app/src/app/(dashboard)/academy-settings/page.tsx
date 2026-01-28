@@ -17,6 +17,7 @@ import {
   AlignJustify,
   List,
   ListOrdered,
+  Code,
   ChevronDown,
   Search,
   Filter,
@@ -34,12 +35,18 @@ import TextAlign from '@tiptap/extension-text-align'
 import { TextStyle } from '@tiptap/extension-text-style'
 import Underline from '@tiptap/extension-underline'
 import { Extension } from '@tiptap/core'
+import { CodeBlockLowlight } from '@tiptap/extension-code-block-lowlight'
+import { createLowlight } from 'lowlight'
+import json from 'highlight.js/lib/languages/json'
 
 type Category = { id: number; name: string; description: string | null }
 type Page = { id: number; title: string; page_type: 'THEORY' | 'TASK'; category_id: number | null; content?: any; updated_at?: string | null }
 type AcademyType = { id: number; name: string; description: string | null }
 type Program = { id: number; name: string; description: string | null; type_id: number | null }
 type ProgramPage = { id: number; page_id: number; order_index: number; is_required: boolean; page: Page & { category: Category | null } }
+
+const lowlight = createLowlight()
+lowlight.register('json', json)
 
 const FontSize = Extension.create({
   name: 'fontSize',
@@ -132,6 +139,7 @@ export default function AcademySettingsPage() {
     underline: false,
     bulletList: false,
     orderedList: false,
+    codeBlock: false,
   })
 
   const editor = useEditor({
@@ -139,6 +147,7 @@ export default function AcademySettingsPage() {
     extensions: [
       StarterKit.configure({
         heading: false,
+        codeBlock: false,
       }),
       Link.configure({ openOnClick: true }),
       Image,
@@ -147,6 +156,7 @@ export default function AcademySettingsPage() {
       TextStyle,
       FontSize,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      CodeBlockLowlight.configure({ lowlight }),
     ],
     content: {},
   })
@@ -155,7 +165,7 @@ export default function AcademySettingsPage() {
     immediatelyRender: false,
     editable: false,
     extensions: [
-      StarterKit.configure({ heading: false }),
+      StarterKit.configure({ heading: false, codeBlock: false }),
       Link.configure({ openOnClick: true }),
       Image,
       Youtube.configure({ width: 640, height: 360 }),
@@ -163,6 +173,7 @@ export default function AcademySettingsPage() {
       TextStyle,
       FontSize,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
+      CodeBlockLowlight.configure({ lowlight }),
     ],
     content: {},
   })
@@ -209,6 +220,7 @@ export default function AcademySettingsPage() {
         underline: editor.isActive('underline'),
         bulletList: editor.isActive('bulletList'),
         orderedList: editor.isActive('orderedList'),
+        codeBlock: editor.isActive('codeBlock'),
       })
     }
     updateToolbar()
@@ -510,6 +522,16 @@ export default function AcademySettingsPage() {
                             title="Numbered list"
                           >
                             <ListOrdered className="w-4 h-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => editor?.chain().focus().toggleCodeBlock().run()}
+                            className={`w-7 h-7 inline-flex items-center justify-center rounded-md hover:text-gray-900 hover:bg-gray-100 ${
+                              toolbarState.codeBlock ? 'bg-gray-100 text-gray-900' : ''
+                            }`}
+                            title="Code block"
+                          >
+                            <Code className="w-4 h-4" />
                           </button>
                         </div>
                         <div className="h-4 w-px bg-gray-200" />
