@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Plus,
   Save,
@@ -9,6 +10,7 @@ import {
   Video,
   BookOpen,
   Pencil,
+  Eye,
   AlignLeft,
   AlignCenter,
   AlignRight,
@@ -16,6 +18,10 @@ import {
   List,
   ListOrdered,
   ChevronDown,
+  Search,
+  Filter,
+  FileText,
+  ClipboardList,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useEmployee } from '@/lib/hooks/useEmployee'
@@ -30,8 +36,7 @@ import Underline from '@tiptap/extension-underline'
 import { Extension } from '@tiptap/core'
 
 type Category = { id: number; name: string; description: string | null }
-type Page = { id: number; title: string; page_type: 'THEORY' | 'TASK'; category_id: number | null; current_version_id: number | null }
-type PageVersion = { id: number; version_number: number; content: any; created_at: string }
+type Page = { id: number; title: string; page_type: 'THEORY' | 'TASK'; category_id: number | null; content?: any; updated_at?: string | null }
 type AcademyType = { id: number; name: string; description: string | null }
 type Program = { id: number; name: string; description: string | null; type_id: number | null }
 type ProgramPage = { id: number; page_id: number; order_index: number; is_required: boolean; page: Page & { category: Category | null } }
@@ -97,7 +102,7 @@ const FontSize = Extension.create({
 })
 
 export default function AcademySettingsPage() {
-  const { employee } = useEmployee()
+  useEmployee()
   const supabase = createClient()
 
   const [categories, setCategories] = useState<Category[]>([])
@@ -112,10 +117,14 @@ export default function AcademySettingsPage() {
   const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null)
   const [selectedProgramId, setSelectedProgramId] = useState<number | null>(null)
   const [programPages, setProgramPages] = useState<ProgramPage[]>([])
+  const [programPagesError, setProgramPagesError] = useState<string | null>(null)
   const [showEditor, setShowEditor] = useState(false)
   const [editingPageId, setEditingPageId] = useState<number | null>(null)
-  const [editingVersionNumber, setEditingVersionNumber] = useState<number>(0)
   const [isAlignMenuOpen, setIsAlignMenuOpen] = useState(false)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [previewTitle, setPreviewTitle] = useState('')
+  const [isMounted, setIsMounted] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
   const [toolbarState, setToolbarState] = useState({
     fontSize: '14px',
     bold: false,
@@ -142,6 +151,22 @@ export default function AcademySettingsPage() {
     content: {},
   })
 
+  const previewEditor = useEditor({
+    immediatelyRender: false,
+    editable: false,
+    extensions: [
+      StarterKit.configure({ heading: false }),
+      Link.configure({ openOnClick: true }),
+      Image,
+      Youtube.configure({ width: 640, height: 360 }),
+      Underline,
+      TextStyle,
+      FontSize,
+      TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    ],
+    content: {},
+  })
+
   const alignment = editor?.getAttributes('paragraph')?.textAlign || 'left'
 
   const AlignmentIcon =
@@ -157,6 +182,17 @@ export default function AcademySettingsPage() {
     () => programs.find((program) => program.id === selectedProgramId) ?? null,
     [programs, selectedProgramId]
   )
+
+  const filteredProgramPages = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase()
+    if (!query) return programPages
+    return programPages.filter((row) => row.page.title.toLowerCase().includes(query))
+  }, [programPages, searchQuery])
+
+  useEffect(() => {
+    setIsMounted(true)
+    return () => setIsMounted(false)
+  }, [])
 
   useEffect(() => {
     if (!editor) return
@@ -240,12 +276,19 @@ export default function AcademySettingsPage() {
   }
 
   const loadProgramPages = async (programId: number) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('academy_program_pages')
-      .select('id, page_id, order_index, is_required, page:academy_pages(id, title, page_type, category_id, current_version_id, category:academy_categories(id, name))')
+      .select('id, page_id, order_index, is_required, page:academy_pages(id, title, page_type, category_id, content, updated_at, category:academy_categories(id, name))')
       .eq('program_id', programId)
       .order('order_index', { ascending: true })
+    if (error) {
+      console.error('Failed to load academy program pages:', error)
+      setProgramPages([])
+      setProgramPagesError(error.message)
+      return
+    }
     setProgramPages((data || []) as ProgramPage[])
+    setProgramPagesError(null)
   }
 
   const createCategory = async () => {
@@ -266,29 +309,15 @@ export default function AcademySettingsPage() {
     setIsSaving(true)
     try {
       if (editingPageId) {
-        const nextVersion = editingVersionNumber + 1
-        const { data: versionData } = await supabase
-          .from('academy_page_versions')
-          .insert({
-            page_id: editingPageId,
-            version_number: nextVersion,
+        await supabase
+          .from('academy_pages')
+          .update({
+            title: newPageTitle,
+            page_type: newPageType,
+            category_id: selectedCategoryId,
             content: editor?.getJSON() ?? {},
-            created_by: employee?.id ?? null,
           })
-          .select()
-          .single()
-
-        if (versionData) {
-          await supabase
-            .from('academy_pages')
-            .update({
-              title: newPageTitle,
-              page_type: newPageType,
-              category_id: selectedCategoryId,
-              current_version_id: (versionData as PageVersion).id,
-            })
-            .eq('id', editingPageId)
-        }
+          .eq('id', editingPageId)
       } else {
         const { data } = await supabase
           .from('academy_pages')
@@ -296,28 +325,11 @@ export default function AcademySettingsPage() {
             title: newPageTitle,
             page_type: newPageType,
             category_id: selectedCategoryId,
+            content: editor?.getJSON() ?? {},
           })
           .select()
           .single()
         if (!data) return
-
-        const { data: versionData } = await supabase
-          .from('academy_page_versions')
-          .insert({
-            page_id: (data as Page).id,
-            version_number: 1,
-            content: editor?.getJSON() ?? {},
-            created_by: employee?.id ?? null,
-          })
-          .select()
-          .single()
-
-        if (versionData) {
-          await supabase
-            .from('academy_pages')
-            .update({ current_version_id: (versionData as PageVersion).id })
-            .eq('id', (data as Page).id)
-        }
 
         await supabase.from('academy_program_pages').insert({
           program_id: selectedProgramId,
@@ -331,7 +343,6 @@ export default function AcademySettingsPage() {
       setNewPageTitle('')
       setShowEditor(false)
       setEditingPageId(null)
-      setEditingVersionNumber(0)
     } catch (error) {
       console.error('Failed to save academy page:', error)
     } finally {
@@ -359,37 +370,57 @@ export default function AcademySettingsPage() {
   return (
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-        <div className={`flex items-center justify-between gap-3 ${showEditor ? 'mb-4' : 'mb-6'}`}>
+        <div className={`flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 ${showEditor ? 'mb-4' : 'mb-6'}`}>
+                <div>
+                  <h1 className="text-[16px] font-semibold text-gray-900 flex items-center gap-2">
+                    <BookOpen className="w-4 h-4 text-indigo-600" />
+                    Academy Settings
+                  </h1>
+                  <p className="text-[12px] text-gray-500 mt-1">
+                    Manage academy programs, theory pages and tasks.
+                  </p>
+                </div>
           <div className="flex items-center gap-3">
-            <BookOpen className="w-5 h-5 text-gray-700" />
-            <div>
-              <h1 className="text-[14px] font-semibold text-gray-900">Academy Settings</h1>
-              <p className="text-[12px] text-gray-500">Manage academy programs and pages</p>
-            </div>
-          </div>
-          {showEditor && (
-            <div className="flex items-center gap-3">
+            {!showEditor && selectedTypeId && (
               <button
                 type="button"
                 onClick={() => {
-                  setShowEditor(false)
                   setEditingPageId(null)
-                  setEditingVersionNumber(0)
+                  setNewPageTitle('')
+                  setNewPageType('THEORY')
+                  setSelectedCategoryId(null)
+                  editor?.commands.setContent({})
+                  setShowEditor(true)
                 }}
-                className="px-4 py-2 text-[12px] font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 shadow-sm transition-all"
+                className="mt-4 sm:mt-0 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg shadow-sm transition-colors flex items-center gap-2 text-[12px]"
               >
-                Discard
+                <Plus className="w-3.5 h-3.5" />
+                Add new content
               </button>
-              <button
-                onClick={createPage}
-                disabled={isSaving || !newPageTitle.trim() || !selectedProgramId}
-                className="px-4 py-2 text-[12px] font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-sm flex items-center gap-2 transition-all disabled:opacity-50"
-              >
-                <Save className="w-3.5 h-3.5" />
-                {editingPageId ? 'Save changes' : 'Save page'}
-              </button>
-            </div>
-          )}
+            )}
+            {showEditor && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditor(false)
+                    setEditingPageId(null)
+                  }}
+                  className="px-4 py-2 text-[12px] font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 shadow-sm transition-all"
+                >
+                  Discard
+                </button>
+                <button
+                  onClick={createPage}
+                  disabled={isSaving || !newPageTitle.trim() || !selectedProgramId}
+                  className="px-4 py-2 text-[12px] font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-sm flex items-center gap-2 transition-all disabled:opacity-50"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  {editingPageId ? 'Save changes' : 'Save page'}
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {!selectedTypeId ? (
@@ -592,14 +623,14 @@ export default function AcademySettingsPage() {
 
                       <div className="space-y-5">
                         <div>
-                          <label className="block text-[12px] font-medium text-gray-700 mb-1">Category</label>
+                          <label className="block text-[12px] font-medium text-gray-700 mb-1">Section</label>
                           <div className="relative">
                             <select
                               value={selectedCategoryId ?? ''}
                               onChange={(e) => setSelectedCategoryId(e.target.value ? Number(e.target.value) : null)}
                               className="w-full pl-3 pr-10 py-2 text-[12px] border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-lg border bg-white shadow-sm appearance-none"
                             >
-                              <option value="">No category</option>
+                              <option value="">No section</option>
                               {categories.map((c) => (
                                 <option key={c.id} value={c.id}>
                                   {c.name}
@@ -617,7 +648,7 @@ export default function AcademySettingsPage() {
                               value={newCategoryName}
                               onChange={(e) => setNewCategoryName(e.target.value)}
                               className="flex-1 min-w-0 block w-full px-3 py-2 rounded-l-md border border-gray-300 text-[12px] focus:ring-blue-500 focus:border-blue-500"
-                              placeholder="New category name..."
+                              placeholder="New section name..."
                             />
                             <button
                               type="button"
@@ -630,7 +661,7 @@ export default function AcademySettingsPage() {
                         </div>
 
                         <div>
-                          <label className="block text-[12px] font-medium text-gray-700 mb-1">Tags</label>
+                          <label className="block text-[12px] font-medium text-gray-700 mb-1">Page Type</label>
                           <div className="relative">
                             <select
                               value={newPageType}
@@ -654,58 +685,145 @@ export default function AcademySettingsPage() {
             ) : (
               <>
                 {!showEditor && (
-                  <div className="rounded-2xl border border-gray-200 overflow-hidden">
-                    <div className="grid grid-cols-[minmax(110px,140px)_minmax(120px,160px)_minmax(320px,1fr)_72px] bg-gray-50/80 text-[11px] uppercase tracking-wider text-gray-500 font-semibold">
-                      <div className="px-3 py-3">Category</div>
-                      <div className="px-3 py-3">Tag</div>
-                      <div className="px-3 py-3">Topic</div>
-                      <div className="px-3 py-3 text-center">Edit</div>
-                    </div>
-                    <div className="divide-y divide-gray-100">
-                      {(programPages.length ? programPages : []).map((row) => (
-                        <div key={row.id} className="grid grid-cols-[minmax(110px,140px)_minmax(120px,160px)_minmax(320px,1fr)_72px] text-[12px] text-gray-700">
-                          <div className="px-3 py-3">{row.page.category?.name || '—'}</div>
-                          <div className="px-3 py-3">{row.page.page_type === 'TASK' ? 'Task' : 'Theory'}</div>
-                          <div className="px-3 py-3 text-gray-900">{row.page.title}</div>
-                          <div className="px-3 py-3 flex justify-center">
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                setEditingPageId(row.page.id)
-                                setNewPageTitle(row.page.title)
-                                setNewPageType(row.page.page_type)
-                                setSelectedCategoryId(row.page.category_id)
-                                setShowEditor(true)
-                                const currentVersionId = row.page.current_version_id
-                                if (currentVersionId) {
-                                  const { data } = await supabase
-                                    .from('academy_page_versions')
-                                    .select('content, version_number')
-                                    .eq('id', currentVersionId)
-                                    .maybeSingle()
-                                  if (data?.content) {
-                                    editor?.commands.setContent(data.content)
-                                  } else {
-                                    editor?.commands.setContent({})
-                                  }
-                                  setEditingVersionNumber(data?.version_number ?? 0)
-                                } else {
-                                  editor?.commands.setContent({})
-                                  setEditingVersionNumber(0)
-                                }
-                              }}
-                              className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-gray-200 text-gray-500 hover:text-gray-900 hover:bg-gray-50"
-                              aria-label="Edit page"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
+                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="p-4 border-b border-gray-100 bg-gray-50/50 flex flex-col sm:flex-row gap-4 justify-between">
+                      <div className="relative w-full sm:w-96">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <Search className="w-4 h-4 text-gray-400" />
                         </div>
-                      ))}
-                      {programPages.length === 0 && (
-                        <div className="px-4 py-6 text-[12px] text-gray-500">No pages yet.</div>
-                      )}
+                        <input
+                          type="text"
+                          value={searchQuery}
+                          onChange={(event) => setSearchQuery(event.target.value)}
+                          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-[12px]"
+                          placeholder="Search topics..."
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-[12px] leading-4 font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50"
+                        >
+                          <Filter className="w-4 h-4 mr-2" />
+                          Filter type
+                        </button>
+                      </div>
                     </div>
+
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                            Section
+                          </th>
+                          <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                            Topic
+                          </th>
+                          <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                            Type
+                          </th>
+                          <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                            Status
+                          </th>
+                          <th className="px-6 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                            Last Updated
+                          </th>
+                          <th className="px-6 py-3 text-right text-[11px] font-semibold text-gray-500 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {(filteredProgramPages.length ? filteredProgramPages : []).map((row) => {
+                          const isTask = row.page.page_type === 'TASK'
+                          const statusLabel = row.page.content ? 'Published' : 'Draft'
+                          const statusColor = row.page.content ? 'bg-green-500' : 'bg-gray-300'
+                          const lastUpdated = row.page.updated_at
+                            ? new Date(row.page.updated_at).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: '2-digit',
+                                year: 'numeric',
+                              })
+                            : '—'
+
+                          return (
+                            <tr key={row.id} className="hover:bg-gray-50 transition-colors group">
+                              <td className="px-6 py-4 whitespace-nowrap text-[12px] text-gray-700">
+                                <div className="flex items-center gap-3">
+                                  <div
+                                    className={`flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center ${
+                                      isTask ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
+                                    }`}
+                                  >
+                                    {isTask ? <ClipboardList className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                                  </div>
+                                  <span>{row.page.category?.name ?? '—'}</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center">
+                                <div className="text-[12px] text-gray-700">{row.page.title}</div>
+                              </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <span
+                                  className={`px-2.5 py-0.5 inline-flex text-[11px] leading-5 font-semibold rounded-full ${
+                                    isTask ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
+                                  }`}
+                                >
+                                  {isTask ? 'Task' : 'Theory'}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`h-2 w-2 rounded-full ${statusColor}`} />
+                                  <span className="text-[12px] text-gray-700">{statusLabel}</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-[12px] text-gray-500">
+                                {lastUpdated}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-right text-[12px] font-medium">
+                                <div className="flex justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      setPreviewTitle(row.page.title)
+                                      setIsPreviewOpen(true)
+                                      previewEditor?.commands.setContent(row.page.content || {})
+                                    }}
+                                    className="p-1.5 hover:bg-gray-100 rounded text-gray-500 hover:text-indigo-600"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      setEditingPageId(row.page.id)
+                                      setNewPageTitle(row.page.title)
+                                      setNewPageType(row.page.page_type)
+                                      setSelectedCategoryId(row.page.category_id)
+                                      setShowEditor(true)
+                                      editor?.commands.setContent(row.page.content || {})
+                                    }}
+                                    className="p-1.5 hover:bg-gray-100 rounded text-gray-500 hover:text-indigo-600"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                        {filteredProgramPages.length === 0 && (
+                          <tr>
+                            <td colSpan={5} className="px-6 py-8 text-center text-[12px] text-gray-500">
+                              {programPagesError ? `Failed to load pages: ${programPagesError}` : 'No pages yet.'}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </>
@@ -713,6 +831,33 @@ export default function AcademySettingsPage() {
           </div>
         )}
       </div>
+
+      {isMounted && isPreviewOpen
+        ? createPortal(
+            <div className="fixed inset-0 z-[2147483647] flex items-center justify-center">
+              <div
+                className="absolute inset-0 bg-black/40"
+                onClick={() => setIsPreviewOpen(false)}
+              />
+              <div className="relative bg-white rounded-2xl border border-gray-200 shadow-xl w-[90vw] max-w-4xl max-h-[85vh] overflow-hidden">
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+                  <div className="text-[14px] font-semibold text-gray-900">{previewTitle || 'Preview'}</div>
+                  <button
+                    type="button"
+                    onClick={() => setIsPreviewOpen(false)}
+                    className="text-gray-500 hover:text-gray-900 text-[12px]"
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className="p-6 overflow-auto max-h-[75vh] tiptap-editor">
+                  <EditorContent editor={previewEditor} />
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </div>
   )
 }

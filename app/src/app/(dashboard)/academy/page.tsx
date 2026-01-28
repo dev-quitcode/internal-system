@@ -27,7 +27,6 @@ type AssignmentPage = {
   id: number
   assignment_id: number
   page_id: number
-  page_version_id: number
   status: string
   score: number | null
   updated_at: string
@@ -37,13 +36,8 @@ type AssignmentPage = {
     title: string
     page_type: 'THEORY' | 'TASK'
     category: { id: number; name: string } | null
+    content?: any
   }
-  version: {
-    id: number
-    version_number: number
-    content: any
-    created_at: string
-  } | null
 }
 
 type CommentRow = {
@@ -116,7 +110,7 @@ export default function AcademyPage() {
 
   useEffect(() => {
     if (!selectedAssignmentPage) return
-    editor?.commands.setContent(selectedAssignmentPage.version?.content ?? {})
+    editor?.commands.setContent(selectedAssignmentPage.page?.content ?? {})
     setSubmissionText('')
     loadSubmission(selectedAssignmentPage.id)
     loadComments(selectedAssignmentPage.id)
@@ -134,7 +128,6 @@ export default function AcademyPage() {
         id,
         assignment_id,
         page_id,
-        page_version_id,
         status,
         score,
         updated_at,
@@ -145,8 +138,7 @@ export default function AcademyPage() {
           assigned_at,
           program:academy_programs ( id, name, description )
         ),
-        page:academy_pages ( id, title, page_type, category:academy_categories ( id, name ) ),
-        version:academy_page_versions ( id, version_number, content, created_at )
+        page:academy_pages ( id, title, page_type, content, category:academy_categories ( id, name ) )
       `
       )
       .eq('assignment.employee_id', employee.id)
