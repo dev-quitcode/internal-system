@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   title: 'QuitCode Internal System',
   description: 'Internal management system for QuitCode team',
   icons: {
-    icon: '/favicon.ico',
+    icon: '/quitcode-logo.svg',
   },
 }
 

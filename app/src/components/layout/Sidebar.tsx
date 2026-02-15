@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutGrid,
@@ -77,8 +78,14 @@ export default function Sidebar() {
     <>
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-4">
-        <div className="w-9 h-9 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-cyan-500/25">
-          <LayoutGrid className="w-4 h-4 text-white" />
+        <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center shadow-sm border border-gray-200">
+          <Image
+            src="/quitcode-logo.svg"
+            alt="QuitCode logo"
+            width={22}
+            height={22}
+            priority
+          />
         </div>
         <span className="text-lg font-bold text-gray-900">QuitCode</span>
       </div>
