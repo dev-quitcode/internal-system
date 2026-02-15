@@ -262,6 +262,208 @@ function LineChart({
   )
 }
 
+function StackedBarChart({
+  labels,
+  external,
+  internal,
+  showExternal,
+  showInternal,
+  interval,
+}: {
+  labels: string[]
+  external: number[]
+  internal: number[]
+  showExternal: boolean
+  showInternal: boolean
+  interval: 'months' | 'weeks' | 'days'
+}) {
+  const yStep = interval === 'months' ? 20 : interval === 'weeks' ? 10 : 2
+  const totals = labels.map((_, index) => (showExternal ? external[index] || 0 : 0) + (showInternal ? internal[index] || 0 : 0))
+  const maxTotalRaw = Math.max(yStep, ...totals)
+  const yMax = Math.ceil(maxTotalRaw / yStep) * yStep + yStep
+  const yTicks = Array.from({ length: Math.floor(yMax / yStep) + 1 }, (_, i) => i * yStep)
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null)
+  const [hoverPos, setHoverPos] = useState<{ x: number; y: number } | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Мінімальна ширина стовпця
+  const barMinWidth = 48
+  const gap = 8
+  const chartContentWidth = labels.length * (barMinWidth + gap) + 16
+
+  // Чи потрібний скрол: контент ширший за контейнер
+  const [containerWidth, setContainerWidth] = useState(0)
+  useEffect(() => {
+    if (!containerRef.current) return
+    const observer = new ResizeObserver(([entry]) => {
+      setContainerWidth(entry.contentRect.width)
+    })
+    observer.observe(containerRef.current)
+    return () => observer.disconnect()
+  }, [])
+
+  const yAxisWidth = 36
+  const availableWidth = containerWidth - yAxisWidth
+  const needsScroll = chartContentWidth > availableWidth
+  // Якщо скрол не потрібен — стовпці розтягуються на всю ширину
+  const innerWidth = needsScroll ? chartContentWidth : availableWidth
+
+  return (
+    <div ref={containerRef} className="w-full pt-2">
+      <div className="relative flex">
+        {/* Y-axis — sticky при горизонтальному скролі */}
+        <div
+          className="relative flex-shrink-0 h-72 bg-white z-10"
+          style={{ width: `${yAxisWidth}px` }}
+        >
+          <div className="absolute inset-x-0 top-0 bottom-6 overflow-visible">
+            {yTicks.map((tick) => {
+              const top = (1 - tick / yMax) * 100
+              return (
+                <div key={tick} className="absolute right-0 w-full" style={{ top: `${top}%`, transform: 'translateY(-50%)' }}>
+                  <div className="text-[10px] text-gray-400 text-right pr-1">{tick}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Scrollable chart area */}
+        <div
+          ref={scrollRef}
+          className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden h-72"
+        >
+          <div
+            className="h-full relative"
+            style={{ width: `${innerWidth}px`, minWidth: `${innerWidth}px` }}
+          >
+            {/* Grid lines */}
+            <div className="absolute inset-x-0 top-0 bottom-6">
+              {yTicks.map((tick) => {
+                const top = (1 - tick / yMax) * 100
+                return (
+                  <div
+                    key={tick}
+                    className="absolute left-0 right-0 border-t border-dashed border-gray-100"
+                    style={{ top: `${top}%` }}
+                  />
+                )
+              })}
+
+              {/* Bars — flex-1 щоб розтягувались коли місця багато */}
+              <div className="absolute inset-0 flex items-end px-1" style={{ gap: `${gap}px` }}>
+                {labels.map((label, index) => {
+                  const ext = showExternal ? external[index] || 0 : 0
+                  const intl = showInternal ? internal[index] || 0 : 0
+                  const total = ext + intl
+                  const totalHeight = (total / yMax) * 100
+                  const extHeight = total ? (ext / total) * 100 : 0
+                  const intlHeight = total ? (intl / total) * 100 : 0
+
+                  return (
+                    <div
+                      key={label}
+                      className="flex flex-col items-center h-full flex-1"
+                      style={{ minWidth: `${barMinWidth}px` }}
+                    >
+                      <div className="w-full flex-1 flex items-end justify-center">
+                        <div className="w-full h-full flex items-end justify-center">
+                          <div
+                            className="relative w-9"
+                            style={{ height: `${Math.max(totalHeight, total > 0 ? 2 : 0)}%` }}
+                          >
+                            {total > 0 ? (
+                              <div className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-semibold text-gray-400 whitespace-nowrap">
+                                {total.toFixed(1)}
+                              </div>
+                            ) : null}
+                            <div className="w-full h-full rounded-[8px] bg-gray-100 overflow-hidden flex flex-col justify-end min-h-[2px]">
+                              {showInternal && intl > 0 ? (
+                                <div
+                                  style={{ height: `${intlHeight}%`, minHeight: '2px' }}
+                                  className="bg-[#10B981]"
+                                  onMouseEnter={(event) => {
+                                    setHoverIndex(index)
+                                    setHoverPos({ x: event.clientX, y: event.clientY })
+                                  }}
+                                  onMouseMove={(event) => {
+                                    setHoverIndex(index)
+                                    setHoverPos({ x: event.clientX, y: event.clientY })
+                                  }}
+                                  onMouseLeave={() => {
+                                    setHoverIndex(null)
+                                    setHoverPos(null)
+                                  }}
+                                />
+                              ) : null}
+                              {showExternal && ext > 0 ? (
+                                <div
+                                  style={{ height: `${extHeight}%`, minHeight: '2px' }}
+                                  className="bg-[#3B82F6]"
+                                  onMouseEnter={(event) => {
+                                    setHoverIndex(index)
+                                    setHoverPos({ x: event.clientX, y: event.clientY })
+                                  }}
+                                  onMouseMove={(event) => {
+                                    setHoverIndex(index)
+                                    setHoverPos({ x: event.clientX, y: event.clientY })
+                                  }}
+                                  onMouseLeave={() => {
+                                    setHoverIndex(null)
+                                    setHoverPos(null)
+                                  }}
+                                />
+                              ) : null}
+                            </div>
+                            {hoverIndex === index && hoverPos ? (
+                              <div
+                                className="fixed z-50 bg-white border border-gray-200 rounded-xl shadow-md px-4 py-2 text-[11px] text-gray-700 min-w-[150px]"
+                                style={{ left: hoverPos.x + 12, top: hoverPos.y + 12 }}
+                              >
+                                <div className="font-semibold text-gray-900 mb-1">{label}</div>
+                                {showExternal ? (
+                                  <div className="flex items-center gap-2">
+                                    <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#3B82F6' }} />
+                                    External: {(external[index] || 0).toFixed(1)}
+                                  </div>
+                                ) : null}
+                                {showInternal ? (
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: '#10B981' }} />
+                                    Internal: {(internal[index] || 0).toFixed(1)}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* X-axis labels */}
+            <div className="absolute inset-x-0 bottom-0 h-6 flex items-end px-1" style={{ gap: `${gap}px` }}>
+              {labels.map((label) => (
+                <div
+                  key={label}
+                  className="flex items-end justify-center flex-1"
+                  style={{ minWidth: `${barMinWidth}px` }}
+                >
+                  <div className="text-[9px] text-gray-500 uppercase tracking-wide whitespace-nowrap">{label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function ProfilePage() {
   const searchParams = useSearchParams()
   const requestedEmployeeId = searchParams.get('employeeId')
@@ -745,38 +947,33 @@ export default function ProfilePage() {
           </div>
         </div>
         <div className="flex flex-wrap gap-3 mb-4">
-          {chartSeries.map((s) => {
-            const key =
-              s.label === 'Total Hours'
-                ? 'total'
-                : s.label === 'External Hours'
-                  ? 'external'
-                  : 'internal'
-            const enabled = visibleSeries[key as keyof typeof visibleSeries]
-            const activeClass =
-              key === 'total'
-                ? 'border-[#8B5CF6] text-[#8B5CF6] bg-[#8B5CF6]/10'
-                : key === 'external'
+          {chartSeries
+            .filter((s) => s.label !== 'Total Hours')
+            .map((s) => {
+              const key = s.label === 'External Hours' ? 'external' : 'internal'
+              const enabled = visibleSeries[key as keyof typeof visibleSeries]
+              const activeClass =
+                key === 'external'
                   ? 'border-[#3B82F6] text-[#3B82F6] bg-[#3B82F6]/10'
                   : 'border-[#10B981] text-[#10B981] bg-[#10B981]/10'
-            return (
-              <button
-                key={s.label}
-                onClick={() =>
-                  setVisibleSeries((prev) => ({
-                    ...prev,
-                    [key]: !enabled,
-                  }))
-                }
-                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-[12px] font-medium ${
-                  enabled ? activeClass : 'border-gray-200 text-gray-400 bg-white'
-                }`}
-              >
-                <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
-                {s.label}
-              </button>
-            )
-          })}
+              return (
+                <button
+                  key={s.label}
+                  onClick={() =>
+                    setVisibleSeries((prev) => ({
+                      ...prev,
+                      [key]: !enabled,
+                    }))
+                  }
+                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-[12px] font-medium ${
+                    enabled ? activeClass : 'border-gray-200 text-gray-400 bg-white'
+                  }`}
+                >
+                  <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
+                  {s.label}
+                </button>
+              )
+            })}
         </div>
 
         {chartLoading ? (
@@ -785,14 +982,14 @@ export default function ProfilePage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] gap-6 items-stretch">
-            <div>
-              <LineChart
+            <div className="min-w-0 overflow-hidden">
+              <StackedBarChart
                 labels={chartLabels}
-                series={chartSeries.filter((s) => {
-                  if (s.label === 'Total Hours') return visibleSeries.total
-                  if (s.label === 'External Hours') return visibleSeries.external
-                  return visibleSeries.internal
-                })}
+                external={chartSeries[1]?.data ?? []}
+                internal={chartSeries[2]?.data ?? []}
+                showExternal={visibleSeries.external}
+                showInternal={visibleSeries.internal}
+                interval={interval}
               />
             </div>
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-[12px] text-gray-700 flex flex-col">
