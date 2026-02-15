@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Calendar, Mail, User, Briefcase, Users, Clock, ChevronLeft, ChevronRight, Filter } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useEmployee } from '@/lib/hooks/useEmployee'
+import type { Tables } from '@/types/database'
 import {
   addDays,
   addMonths,
@@ -35,6 +37,8 @@ interface ChartSeries {
   dashed?: boolean
   fillGradientId?: string
 }
+
+type Employee = Tables<'employees'>
 
 function normalizeKey(value: string | null) {
   if (!value) return ''
@@ -259,7 +263,13 @@ function LineChart({
 }
 
 export default function ProfilePage() {
-  const { employee, isLoading, error } = useEmployee()
+  const searchParams = useSearchParams()
+  const requestedEmployeeId = searchParams.get('employeeId')
+  const { employee: viewerEmployee, isLoading, error } = useEmployee()
+  const [profileEmployee, setProfileEmployee] = useState<Employee | null>(null)
+  const [profileError, setProfileError] = useState<string | null>(null)
+  const [isProfileLoading, setIsProfileLoading] = useState(false)
+  const employee = profileEmployee
   const [positionName, setPositionName] = useState<string | null>(null)
   const [teamName, setTeamName] = useState<string | null>(null)
   const [chartLoading, setChartLoading] = useState(true)
@@ -280,6 +290,43 @@ export default function ProfilePage() {
   const rangeRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    const loadProfileEmployee = async () => {
+      if (!viewerEmployee) return
+      if (!requestedEmployeeId) {
+        setProfileEmployee(viewerEmployee)
+        setProfileError(null)
+        return
+      }
+
+      const id = Number(requestedEmployeeId)
+      if (!Number.isFinite(id)) {
+        setProfileEmployee(null)
+        setProfileError('Invalid employee id.')
+        return
+      }
+
+      setIsProfileLoading(true)
+      setProfileError(null)
+      const supabase = createClient()
+      const { data, error: profileLoadError } = await supabase
+        .from('employees')
+        .select('*')
+        .eq('id', id)
+        .single()
+
+      if (profileLoadError) {
+        setProfileEmployee(null)
+        setProfileError(profileLoadError.message)
+      } else {
+        setProfileEmployee(data)
+      }
+      setIsProfileLoading(false)
+    }
+
+    loadProfileEmployee()
+  }, [viewerEmployee, requestedEmployeeId])
+
+  useEffect(() => {
     if (!showRangePicker) return
     const handleClickOutside = (event: MouseEvent) => {
       if (rangeRef.current && !rangeRef.current.contains(event.target as Node)) {
@@ -296,25 +343,16 @@ export default function ProfilePage() {
     const loadMeta = async () => {
       if (!employee) return
       const supabase = createClient()
-      if (employee.position_id) {
-        const { data } = await supabase
-          .from('positions')
-          .select('name')
-          .eq('id', employee.position_id)
-          .maybeSingle()
-        setPositionName(data?.name ?? null)
-      } else {
-        const { data: positionRows } = await supabase
-          .from('employee_position_history')
-          .select('position_id, positions ( name )')
-          .eq('employee_id', employee.id)
-          .order('start_date', { ascending: false })
+      const { data: positionRows } = await supabase
+        .from('employee_position_history')
+        .select('position_id, positions ( name )')
+        .eq('employee_id', employee.id)
+        .order('start_date', { ascending: false })
 
-        const names = (positionRows || [])
-          .map((row) => (row as { positions?: { name?: string } }).positions?.name)
-          .filter(Boolean) as string[]
-        setPositionName(names.length ? Array.from(new Set(names)).join(', ') : null)
-      }
+      const names = (positionRows || [])
+        .map((row) => (row as { positions?: { name?: string } }).positions?.name)
+        .filter(Boolean) as string[]
+      setPositionName(names.length ? Array.from(new Set(names)).join(', ') : null)
 
       const { data: teamRows } = await supabase
         .from('team_employees')
@@ -420,7 +458,7 @@ export default function ProfilePage() {
     return `${employee.first_name ?? ''} ${employee.last_name ?? ''}`.trim() || '—'
   }, [employee])
 
-  if (isLoading) {
+  if (isLoading || isProfileLoading) {
     return (
       <div className="flex items-center justify-center min-h-[300px]">
         <div className="flex items-center gap-3">
@@ -431,11 +469,11 @@ export default function ProfilePage() {
     )
   }
 
-  if (error) {
+  if (error || profileError) {
     return (
       <div className="max-w-2xl mx-auto mt-12">
         <div className="bg-red-50 border border-red-200 rounded-2xl p-6 text-center">
-          <p className="text-red-600">{error}</p>
+          <p className="text-red-600">{profileError ?? error}</p>
         </div>
       </div>
     )
@@ -454,7 +492,9 @@ export default function ProfilePage() {
           </div>
           <div>
             <h1 className="text-[14px] font-semibold text-gray-900">Profile</h1>
-            <p className="text-[12px] text-gray-500">Your employee details</p>
+            <p className="text-[12px] text-gray-500">
+              {requestedEmployeeId ? 'Employee details' : 'Your employee details'}
+            </p>
           </div>
         </div>
 

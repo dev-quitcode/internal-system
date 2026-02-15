@@ -23,6 +23,7 @@ import {
   Filter,
   FileText,
   ClipboardList,
+  Trash2,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useEmployee } from '@/lib/hooks/useEmployee'
@@ -132,6 +133,11 @@ export default function AcademySettingsPage() {
   const [previewTitle, setPreviewTitle] = useState('')
   const [isMounted, setIsMounted] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<Page | null>(null)
+  const [deleteToken, setDeleteToken] = useState('')
+  const [deleteInput, setDeleteInput] = useState('')
+  const [isDeleting, setIsDeleting] = useState(false)
   const [toolbarState, setToolbarState] = useState({
     fontSize: '14px',
     bold: false,
@@ -377,6 +383,45 @@ export default function AcademySettingsPage() {
     const url = window.prompt('Paste YouTube URL')
     if (!url) return
     editor?.chain().focus().setYoutubeVideo({ src: url }).run()
+  }
+
+  const generateDeleteToken = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+    let result = ''
+    for (let i = 0; i < 6; i += 1) {
+      result += chars[Math.floor(Math.random() * chars.length)]
+    }
+    return result
+  }
+
+  const openDeleteModal = (page: Page) => {
+    setDeleteTarget(page)
+    setDeleteInput('')
+    setDeleteToken(generateDeleteToken())
+    setIsDeleteOpen(true)
+  }
+
+  const closeDeleteModal = () => {
+    setIsDeleteOpen(false)
+    setDeleteTarget(null)
+    setDeleteInput('')
+    setDeleteToken('')
+  }
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return
+    setIsDeleting(true)
+    try {
+      await supabase.from('academy_program_pages').delete().eq('page_id', deleteTarget.id)
+      await supabase.from('academy_pages').delete().eq('id', deleteTarget.id)
+      if (selectedProgramId) loadProgramPages(selectedProgramId)
+      closeDeleteModal()
+    } catch (error) {
+      console.error('Failed to delete academy page:', error)
+      setIsDeleting(false)
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   return (
@@ -832,6 +877,13 @@ export default function AcademySettingsPage() {
                                   >
                                     <Pencil className="w-4 h-4" />
                                   </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => openDeleteModal(row.page)}
+                                    className="p-1.5 hover:bg-red-50 rounded text-gray-500 hover:text-red-600"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
                                 </div>
                               </td>
                             </tr>
@@ -839,7 +891,7 @@ export default function AcademySettingsPage() {
                         })}
                         {filteredProgramPages.length === 0 && (
                           <tr>
-                            <td colSpan={5} className="px-6 py-8 text-center text-[12px] text-gray-500">
+                            <td colSpan={6} className="px-6 py-8 text-center text-[12px] text-gray-500">
                               {programPagesError ? `Failed to load pages: ${programPagesError}` : 'No pages yet.'}
                             </td>
                           </tr>
@@ -874,6 +926,61 @@ export default function AcademySettingsPage() {
                 </div>
                 <div className="p-6 overflow-auto max-h-[75vh] tiptap-editor">
                   <EditorContent editor={previewEditor} />
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+      {isMounted && isDeleteOpen
+        ? createPortal(
+            <div className="fixed inset-0 z-[2147483647] flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/40" onClick={closeDeleteModal} />
+              <div className="relative bg-white rounded-2xl border border-gray-200 shadow-xl w-[90vw] max-w-md overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <div className="text-[14px] font-semibold text-gray-900">Delete page</div>
+                  <div className="text-[12px] text-gray-500 mt-1">
+                    This action is permanent. Type the code below to confirm.
+                  </div>
+                </div>
+                <div className="px-6 py-5 space-y-4">
+                  <div className="text-[12px] text-gray-600">
+                    Page: <span className="font-semibold text-gray-900">{deleteTarget?.title}</span>
+                  </div>
+                  <div className="bg-gray-50 border border-dashed border-gray-300 rounded-lg px-4 py-3 text-center text-[18px] font-mono tracking-widest text-gray-900">
+                    {deleteToken}
+                  </div>
+                  <input
+                    type="text"
+                    value={deleteInput}
+                    onChange={(e) => setDeleteInput(e.target.value.toUpperCase())}
+                    onPaste={(e) => e.preventDefault()}
+                    onDrop={(e) => e.preventDefault()}
+                    placeholder="Enter the code"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-[12px] focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-400"
+                    autoComplete="off"
+                  />
+                  <div className="text-[11px] text-gray-500">
+                    Paste is disabled to make sure the code is typed manually.
+                  </div>
+                </div>
+                <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={closeDeleteModal}
+                    className="px-4 py-2 text-[12px] font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                    disabled={isDeleting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmDelete}
+                    disabled={isDeleting || deleteInput.trim() !== deleteToken}
+                    className="px-4 py-2 text-[12px] font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
+                  >
+                    {isDeleting ? 'Deleting...' : 'Delete page'}
+                  </button>
                 </div>
               </div>
             </div>,
