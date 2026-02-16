@@ -467,7 +467,7 @@ function StackedBarChart({
 export default function ProfilePage() {
   const searchParams = useSearchParams()
   const requestedEmployeeId = searchParams.get('employeeId')
-  const { employee: viewerEmployee, isLoading, error } = useEmployee()
+  const { user, employee: viewerEmployee, isLoading, error } = useEmployee()
   const [profileEmployee, setProfileEmployee] = useState<Employee | null>(null)
   const [profileError, setProfileError] = useState<string | null>(null)
   const [isProfileLoading, setIsProfileLoading] = useState(false)
@@ -659,6 +659,23 @@ export default function ProfilePage() {
     if (!employee) return '—'
     return `${employee.first_name ?? ''} ${employee.last_name ?? ''}`.trim() || '—'
   }, [employee])
+  const initials = useMemo(() => {
+    if (!employee) return '—'
+    const first = employee.first_name?.trim()?.[0] ?? ''
+    const last = employee.last_name?.trim()?.[0] ?? ''
+    const combined = `${first}${last}`.toUpperCase()
+    return combined || '—'
+  }, [employee])
+  const avatarUrl = useMemo(() => {
+    if (!user || !employee) return null
+    if ((user.email ?? '').toLowerCase() !== (employee.email ?? '').toLowerCase()) return null
+    const meta = user.user_metadata as Record<string, unknown> | null
+    const url =
+      (meta?.avatar_url as string | undefined) ??
+      (meta?.picture as string | undefined) ??
+      (meta?.avatarUrl as string | undefined)
+    return typeof url === 'string' && url.trim() ? url : null
+  }, [user, employee])
 
   if (isLoading || isProfileLoading) {
     return (
@@ -687,62 +704,47 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
-      <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-[rgb(10_194_255)]/15 flex items-center justify-center text-[rgb(10_194_255)]">
-            <User className="w-5 h-5" />
+      <div className="bg-white rounded-2xl border border-slate-200 p-8 shadow-[0_10px_30px_-10px_rgba(15,23,42,0.12)]">
+        <div className="flex flex-col md:flex-row md:items-center gap-6 mb-10">
+          <div className="h-24 w-24 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 text-white flex items-center justify-center text-3xl font-bold shadow-[0_12px_24px_rgba(37,99,235,0.25)] overflow-hidden">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt={fullName} className="h-full w-full object-cover" />
+            ) : (
+              initials
+            )}
           </div>
           <div>
-            <h1 className="text-[14px] font-semibold text-gray-900">Profile</h1>
-            <p className="text-[12px] text-gray-500">
-              {requestedEmployeeId ? 'Employee details' : 'Your employee details'}
-            </p>
+            {requestedEmployeeId ? (
+              <p className="text-[12px] text-slate-500 font-medium">Employee details</p>
+            ) : null}
+            <h1 className="text-[22px] font-extrabold text-slate-900 tracking-tight">{fullName}</h1>
+            <div className="mt-3 inline-flex items-center gap-2 rounded-xl bg-blue-50 px-3 py-1.5 text-[12px] font-semibold text-blue-700">
+              <Briefcase className="h-4 w-4" />
+              {positionName ?? employee.position ?? '—'}
+            </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <User className="w-4 h-4 text-gray-500" />
-            <div>
-              <p className="text-[12px] text-gray-500">Name</p>
-              <p className="text-[12px] text-gray-900">{fullName}</p>
-            </div>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Email address</p>
+            <p className="mt-2 text-[14px] font-semibold text-slate-900">{employee.email}</p>
           </div>
-          <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <Mail className="w-4 h-4 text-gray-500" />
-            <div>
-              <p className="text-[12px] text-gray-500">Email</p>
-              <p className="text-[12px] text-gray-900">{employee.email}</p>
-            </div>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Team</p>
+            <p className="mt-2 text-[14px] font-semibold text-slate-900">{teamName ?? '—'}</p>
           </div>
-          <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <Briefcase className="w-4 h-4 text-gray-500" />
-            <div>
-              <p className="text-[12px] text-gray-500">Position</p>
-              <p className="text-[12px] text-gray-900">{positionName ?? employee.position ?? '—'}</p>
-            </div>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Employment Date</p>
+            <p className="mt-2 text-[14px] font-semibold text-slate-900">
+              {employee.employment_date ? format(new Date(employee.employment_date), 'MMM dd, yyyy') : '—'}
+            </p>
           </div>
-          <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <Users className="w-4 h-4 text-gray-500" />
-            <div>
-              <p className="text-[12px] text-gray-500">Team</p>
-              <p className="text-[12px] text-gray-900">{teamName ?? '—'}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <Calendar className="w-4 h-4 text-gray-500" />
-            <div>
-              <p className="text-[12px] text-gray-500">Employment Date</p>
-              <p className="text-[12px] text-gray-900">
-                {employee.employment_date ? format(new Date(employee.employment_date), 'MMM dd, yyyy') : '—'}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-4">
-            <Clock className="w-4 h-4 text-gray-500" />
-            <div>
-              <p className="text-[12px] text-gray-500">Status</p>
-              <p className="text-[12px] text-gray-900">{employee.status ?? '—'}</p>
+          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">Status</p>
+            <div className="mt-2 inline-flex items-center gap-2 text-[14px] font-semibold text-emerald-600">
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+              {employee.status ?? '—'}
             </div>
           </div>
         </div>
