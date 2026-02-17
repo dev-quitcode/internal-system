@@ -283,7 +283,7 @@ export default function AcademyPage() {
                         Content
                       </div>
                     </div>
-                    <div className="p-3 overflow-y-auto pr-1 h-[calc(100%-92px)]">
+                    <div className="p-3 pb-10 overflow-y-auto pr-1 h-[calc(100%-92px)]">
                       {groupedPrograms.map((group) => (
                         <div key={group.assignment.id} className="space-y-1">
                           {group.pages.map((page) => (
