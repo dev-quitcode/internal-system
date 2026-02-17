@@ -15,6 +15,7 @@ import {
   DollarSign,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   LogOut,
   Menu,
   X,
@@ -26,6 +27,11 @@ interface NavItem {
   href: string
   icon: React.ElementType
   children?: { name: string; href: string }[]
+}
+
+type SidebarProps = {
+  isCollapsed?: boolean
+  onToggleCollapse?: () => void
 }
 
 const navigation: NavItem[] = [
@@ -49,7 +55,7 @@ const navigation: NavItem[] = [
   { name: 'Financial request', href: '/financial-request', icon: DollarSign },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ isCollapsed = false, onToggleCollapse }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [expandedItems, setExpandedItems] = useState<string[]>([])
@@ -77,7 +83,7 @@ export default function Sidebar() {
   const NavContent = () => (
     <>
       {/* Logo */}
-      <div className="flex items-center gap-3 px-4 py-4">
+      <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-4 py-4`}>
         <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center shadow-sm border border-gray-200">
           <Image
             src="/quitcode-logo.svg"
@@ -87,11 +93,20 @@ export default function Sidebar() {
             priority
           />
         </div>
-        <span className="text-lg font-bold text-gray-900">QuitCode</span>
+        {!isCollapsed && <span className="text-lg font-bold text-gray-900">QuitCode</span>}
+        {!isCollapsed && onToggleCollapse && (
+          <button
+            onClick={onToggleCollapse}
+            className="ml-auto p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+            title="Collapse sidebar"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-2 py-2 overflow-y-auto">
+      <nav className={`flex-1 ${isCollapsed ? 'px-1' : 'px-2'} py-2 overflow-y-auto`}>
         <ul className="space-y-1">
           {navigation.map((item) => {
             const Icon = item.icon
@@ -100,7 +115,7 @@ export default function Sidebar() {
 
             return (
               <li key={item.name}>
-                {item.children ? (
+                {item.children && !isCollapsed ? (
                   <div>
                     <button
                       onClick={() => toggleExpanded(item.name)}
@@ -149,7 +164,7 @@ export default function Sidebar() {
                   <Link
                     href={item.href}
                     className={`
-                      flex items-center gap-3 px-3 py-2.5 rounded-lg
+                      flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-lg
                       text-[13px] font-medium transition-all duration-200
                       ${active
                         ? 'bg-cyan-50 text-cyan-700 border border-cyan-200'
@@ -157,9 +172,10 @@ export default function Sidebar() {
                       }
                     `}
                     onClick={() => setIsMobileMenuOpen(false)}
+                    title={isCollapsed ? item.name : undefined}
                   >
                     <Icon className="w-4 h-4" />
-                    <span>{item.name}</span>
+                    {!isCollapsed && <span>{item.name}</span>}
                   </Link>
                 )}
               </li>
@@ -172,10 +188,11 @@ export default function Sidebar() {
       <div className="p-2 border-t border-gray-200">
         <button
           onClick={handleSignOut}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 transition-all duration-200"
+          className={`w-full flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-3 py-2.5 rounded-lg text-[13px] font-medium text-gray-600 hover:bg-red-50 hover:text-red-600 transition-all duration-200`}
+          title={isCollapsed ? 'Sign Out' : undefined}
         >
           <LogOut className="w-4 h-4" />
-          <span>Sign Out</span>
+          {!isCollapsed && <span>Sign Out</span>}
         </button>
       </div>
     </>
@@ -219,7 +236,20 @@ export default function Sidebar() {
       </aside>
 
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:fixed lg:inset-y-0 lg:border-r lg:border-gray-200 lg:bg-white">
+      <aside
+        className={`hidden lg:flex lg:flex-col lg:fixed lg:inset-y-0 lg:border-r lg:border-gray-200 lg:bg-white ${
+          isCollapsed ? 'lg:w-20' : 'lg:w-60'
+        }`}
+      >
+        {isCollapsed && onToggleCollapse && (
+          <button
+            onClick={onToggleCollapse}
+            className="mx-auto mt-4 p-2 rounded-lg hover:bg-gray-100 text-gray-500"
+            title="Expand sidebar"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        )}
         <NavContent />
       </aside>
     </>

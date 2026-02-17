@@ -102,6 +102,12 @@ export default function AcademyPage() {
     return Array.from(groups.values())
   }, [assignmentPages])
 
+  const progressPercent = useMemo(() => {
+    if (!assignmentPages.length) return 0
+    const completed = assignmentPages.filter((page) => page.status === 'done').length
+    return Math.round((completed / assignmentPages.length) * 100)
+  }, [assignmentPages])
+
   useEffect(() => {
     if (employee) {
       loadAssignments()
@@ -190,7 +196,7 @@ export default function AcademyPage() {
   const loadComments = async (assignmentPageId: number) => {
     const supabase = createClient()
     const { data } = await supabase
-      .from('academy_task_comments')
+      .from('academy_page_comments')
       .select('id, comment, created_at, author:employees ( first_name, last_name, email )')
       .eq('assignment_page_id', assignmentPageId)
       .order('created_at', { ascending: true })
@@ -230,7 +236,7 @@ export default function AcademyPage() {
     if (!selectedAssignmentPage || !commentText.trim() || !employee) return
     setIsCommenting(true)
     const supabase = createClient()
-    await supabase.from('academy_task_comments').insert({
+    await supabase.from('academy_page_comments').insert({
       assignment_page_id: selectedAssignmentPage.id,
       comment: commentText.trim(),
       author_employee_id: employee.id,
@@ -249,174 +255,185 @@ export default function AcademyPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded-xl bg-[rgb(10_194_255)]/15 flex items-center justify-center text-[rgb(10_194_255)]">
-            <BookOpen className="w-5 h-5" />
-          </div>
-          <div>
-            <h1 className="text-[14px] font-semibold text-gray-900">Academy</h1>
-            <p className="text-[12px] text-gray-500">Your assigned learning pages</p>
-          </div>
+    <>
+      {isLoadingAssignments ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="w-6 h-6 border-2 border-[rgb(10_194_255)] border-t-transparent rounded-full animate-spin"></div>
         </div>
-
-        {isLoadingAssignments ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="w-6 h-6 border-2 border-[rgb(10_194_255)] border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        ) : assignmentPages.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-gray-200 p-10 text-center text-gray-500 text-[12px]">
-            You have no assigned academy pages yet.
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6">
-            <div className="space-y-4">
-              {groupedPrograms.map((group) => (
-                <div key={group.assignment.id} className="rounded-xl border border-gray-200 p-3">
-                  <div className="text-[12px] font-semibold text-gray-900 mb-1">
-                    {group.assignment.program.name}
-                  </div>
-                  <div className="text-[11px] text-gray-500 mb-3">
-                    {group.assignment.program.description || 'No description'}
-                  </div>
-                  <div className="space-y-1">
-                    {group.pages.map((page) => (
-                      <button
-                        key={page.id}
-                        onClick={() => setSelectedAssignmentPageId(page.id)}
-                        className={`w-full text-left px-3 py-2 rounded-xl border transition-colors text-[12px] flex items-center justify-between gap-2 ${
-                          selectedAssignmentPageId === page.id
-                            ? 'border-[rgb(10_194_255)] bg-[rgb(10_194_255)]/10'
-                            : 'border-gray-200 hover:bg-gray-50'
-                        }`}
-                      >
-                        <div>
-                          <div className="text-gray-900">{page.page.title}</div>
-                          <div className="text-[11px] text-gray-500">
-                            {page.page.page_type === 'TASK' ? 'Task' : 'Theory'}
-                            {page.page.category ? ` • ${page.page.category.name}` : ''}
-                          </div>
-                        </div>
-                        <span className="text-[10px] text-gray-500 uppercase">
-                          {statusLabel(page.status)}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="rounded-xl border border-gray-200 p-5">
-              {selectedAssignmentPage ? (
-                <>
-                  <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-                    <div>
-                      <div className="text-[13px] font-semibold text-gray-900">
-                        {selectedAssignmentPage.page.title}
+      ) : assignmentPages.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-gray-200 p-10 text-center text-gray-500 text-[12px]">
+          You have no assigned academy pages yet.
+        </div>
+      ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[calc(100vh-120px)] overflow-hidden min-h-0">
+            <div className={`lg:col-span-9 h-full min-h-0 ${selectedAssignmentPage ? '' : 'lg:col-span-12'}`}>
+              <div className="rounded-2xl border border-gray-100 bg-white shadow-sm h-full min-h-0 overflow-hidden">
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full min-h-0">
+                  <aside className="lg:col-span-4 h-full min-h-0 border-r border-gray-100">
+                    <div className="p-4 border-b">
+                      <div className="text-[13px] font-semibold text-gray-900">Developer Academy</div>
+                      <div className="mt-2 h-2 w-full rounded-full bg-gray-100">
+                        <div
+                          className="h-2 rounded-full bg-[rgb(10_194_255)]"
+                          style={{ width: `${progressPercent}%` }}
+                        />
                       </div>
-                      <div className="text-[11px] text-gray-500">
-                        {selectedAssignmentPage.page.page_type === 'TASK' ? 'Task' : 'Theory'}
-                        {selectedAssignmentPage.page.category ? ` • ${selectedAssignmentPage.page.category.name}` : ''}
+                      <div className="mt-1 text-[10px] text-gray-500">{progressPercent}% completed</div>
+                      <div className="mt-4 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                        Content
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={selectedAssignmentPage.status}
-                        onChange={(event) => updateStatus(selectedAssignmentPage, event.target.value)}
-                        className="px-3 py-1.5 text-[12px] border border-gray-200 rounded-lg bg-[rgb(235_235_240)] text-gray-700"
-                      >
-                        {STATUS_OPTIONS.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      {selectedAssignmentPage.score !== null && (
-                        <div className="text-[12px] text-gray-500">Score: {selectedAssignmentPage.score}</div>
+                    <div className="p-3 overflow-y-auto pr-1 h-[calc(100%-92px)]">
+                      {groupedPrograms.map((group) => (
+                        <div key={group.assignment.id} className="space-y-1">
+                          {group.pages.map((page) => (
+                            <button
+                              key={page.id}
+                              onClick={() => setSelectedAssignmentPageId(page.id)}
+                              className={`w-full text-left px-3 py-2 rounded-lg transition-colors text-[12px] flex items-center justify-between gap-2 ${
+                                selectedAssignmentPageId === page.id
+                                  ? 'bg-cyan-50 text-cyan-700 border border-cyan-200'
+                                  : 'hover:bg-gray-50 text-gray-700'
+                              }`}
+                            >
+                              <div>
+                                <div className="text-gray-900">{page.page.title}</div>
+                                <div className="text-[11px] text-gray-500">
+                                  {page.page.page_type === 'TASK' ? 'Task' : 'Theory'}
+                                  {page.page.category ? ` • ${page.page.category.name}` : ''}
+                                </div>
+                              </div>
+                              <span className="text-[10px] text-gray-500 uppercase">
+                                {statusLabel(page.status)}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </aside>
+
+                  <section className="lg:col-span-8 h-full min-h-0">
+                    <div className="p-8 h-full flex flex-col min-h-0">
+                {selectedAssignmentPage ? (
+                  <>
+                    <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
+                      <div>
+                        <span className="text-[10px] font-bold text-[rgb(10_194_255)] uppercase tracking-widest">
+                          {selectedAssignmentPage.page.page_type === 'TASK' ? 'Task' : 'Theory'}
+                          {selectedAssignmentPage.page.category ? ` • ${selectedAssignmentPage.page.category.name}` : ''}
+                        </span>
+                        <div className="text-[24px] font-bold text-gray-900 mt-1">
+                          {selectedAssignmentPage.page.title}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={selectedAssignmentPage.status}
+                          onChange={(event) => updateStatus(selectedAssignmentPage, event.target.value)}
+                          className="px-4 py-1.5 text-[11px] font-semibold rounded-full bg-yellow-100 text-yellow-700 border border-yellow-200"
+                        >
+                          {STATUS_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                        {selectedAssignmentPage.score !== null && (
+                          <div className="text-[12px] text-gray-500">Score: {selectedAssignmentPage.score}</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-4 overflow-y-auto overflow-x-hidden flex-1 pr-1 min-h-0">
+                      <div className="min-h-[260px] text-[13px] text-gray-700">
+                        <EditorContent editor={editor} />
+                      </div>
+
+                      {selectedAssignmentPage.page.page_type === 'TASK' && (
+                        <div className="border border-gray-200 rounded-xl p-4">
+                          <div className="text-[11px] font-semibold text-gray-600 mb-2 uppercase tracking-widest">
+                            Your answer
+                          </div>
+                          <textarea
+                            value={submissionText}
+                            onChange={(event) => setSubmissionText(event.target.value)}
+                            rows={6}
+                            placeholder="Write your answer here..."
+                            className="w-full text-[13px] border border-gray-200 rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-[rgb(10_194_255)]/20"
+                          />
+                          <button
+                            type="button"
+                            onClick={submitTask}
+                            disabled={isSubmitting || !submissionText.trim()}
+                            className="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-[12px] font-semibold rounded-xl bg-[rgb(10_194_255)] text-white disabled:opacity-50"
+                          >
+                            <Send className="w-3.5 h-3.5" /> Submit
+                          </button>
+                        </div>
                       )}
                     </div>
-                  </div>
-
-                  <div className="border border-gray-200 rounded-xl p-4 min-h-[260px]">
-                    <EditorContent editor={editor} />
-                  </div>
-
-                  {selectedAssignmentPage.page.page_type === 'TASK' && (
-                    <div className="mt-6 grid grid-cols-1 lg:grid-cols-[1.2fr_0.8fr] gap-4">
-                      <div className="rounded-xl border border-gray-200 p-4">
-                        <div className="text-[12px] font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                          <ClipboardList className="w-4 h-4" /> Submission
-                        </div>
-                        <textarea
-                          value={submissionText}
-                          onChange={(event) => setSubmissionText(event.target.value)}
-                          rows={6}
-                          placeholder="Write your answer..."
-                          className="w-full text-[12px] border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[rgb(10_194_255)]/20"
-                        />
-                        <button
-                          type="button"
-                          onClick={submitTask}
-                          disabled={isSubmitting || !submissionText.trim()}
-                          className="mt-3 inline-flex items-center gap-2 px-4 py-2 text-[12px] font-semibold rounded-lg bg-[rgb(10_194_255)] text-white disabled:opacity-50"
-                        >
-                          <Send className="w-3.5 h-3.5" /> Submit
-                        </button>
-                      </div>
-
-                      <div className="rounded-xl border border-gray-200 p-4">
-                        <div className="text-[12px] font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                          <MessageSquarePlus className="w-4 h-4" /> Comments
-                        </div>
-                        <div className="space-y-3 max-h-52 overflow-auto mb-3">
-                          {comments.length === 0 ? (
-                            <div className="text-[12px] text-gray-500">No comments yet.</div>
-                          ) : (
-                            comments.map((comment) => (
-                              <div key={comment.id} className="text-[12px] text-gray-700">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-gray-900 font-medium">
-                                    {comment.author?.first_name || comment.author?.last_name
-                                      ? `${comment.author?.first_name ?? ''} ${comment.author?.last_name ?? ''}`.trim()
-                                      : comment.author?.email ?? 'User'}
-                                  </span>
-                                  <span className="text-[10px] text-gray-400">
-                                    {format(new Date(comment.created_at), 'dd.MM.yyyy')}
-                                  </span>
-                                </div>
-                                <div className="text-gray-600">{comment.comment}</div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                        <textarea
-                          value={commentText}
-                          onChange={(event) => setCommentText(event.target.value)}
-                          rows={3}
-                          placeholder="Leave a comment..."
-                          className="w-full text-[12px] border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-[rgb(10_194_255)]/20"
-                        />
-                        <button
-                          type="button"
-                          onClick={submitComment}
-                          disabled={isCommenting || !commentText.trim()}
-                          className="mt-3 inline-flex items-center gap-2 px-4 py-2 text-[12px] font-semibold rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                        >
-                          Add comment
-                        </button>
-                      </div>
+                  </>
+                ) : (
+                  <div className="text-[12px] text-gray-500">Select a page to view content.</div>
+                )}
                     </div>
-                  )}
-                </>
-              ) : (
-                <div className="text-[12px] text-gray-500">Select a page to view content.</div>
-              )}
+                  </section>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
-    </div>
+
+            {selectedAssignmentPage && (
+              <aside className="lg:col-span-3 flex flex-col h-full min-h-0">
+                <div className="rounded-2xl border border-gray-100 overflow-hidden bg-white shadow-sm flex flex-col h-full">
+                  <div className="p-4 border-b flex justify-between items-center">
+                    <h3 className="text-[13px] font-bold text-gray-800">Comments ({comments.length})</h3>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {comments.length === 0 ? (
+                      <div className="text-[12px] text-gray-500">No comments yet.</div>
+                    ) : (
+                      comments.map((comment) => (
+                        <div key={comment.id} className="bg-gray-50 p-3 rounded-lg">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[11px] font-semibold text-gray-700">
+                              {comment.author?.first_name || comment.author?.last_name
+                                ? `${comment.author?.first_name ?? ''} ${comment.author?.last_name ?? ''}`.trim()
+                                : comment.author?.email ?? 'User'}
+                            </span>
+                            <span className="text-[10px] text-gray-400">
+                              {format(new Date(comment.created_at), 'dd.MM.yyyy')}
+                            </span>
+                          </div>
+                          <p className="text-[12px] text-gray-600">{comment.comment}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="p-4 border-t">
+                    <textarea
+                      value={commentText}
+                      onChange={(event) => setCommentText(event.target.value)}
+                      rows={3}
+                      placeholder="Add a comment..."
+                      className="w-full text-[12px] border border-gray-100 rounded-lg p-2 focus:outline-none focus:border-[rgb(10_194_255)] bg-gray-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={submitComment}
+                      disabled={isCommenting || !commentText.trim()}
+                      className="mt-2 w-full text-[12px] bg-gray-900 text-white py-2 rounded-lg font-semibold hover:bg-black disabled:opacity-50"
+                    >
+                      Send
+                    </button>
+                  </div>
+                </div>
+              </aside>
+            )}
+        </div>
+      )}
+    </>
   )
 }
