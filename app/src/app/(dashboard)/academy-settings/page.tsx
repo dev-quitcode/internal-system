@@ -24,13 +24,14 @@ import {
   FileText,
   ClipboardList,
   Trash2,
+  GripVertical,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useEmployee } from '@/lib/hooks/useEmployee'
 import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
-import Image from '@tiptap/extension-image'
+import { Image as TiptapImage } from '@tiptap/extension-image'
 import Youtube from '@tiptap/extension-youtube'
 import TextAlign from '@tiptap/extension-text-align'
 import { TextStyle } from '@tiptap/extension-text-style'
@@ -138,6 +139,9 @@ export default function AcademySettingsPage() {
   const [deleteToken, setDeleteToken] = useState('')
   const [deleteInput, setDeleteInput] = useState('')
   const [isDeleting, setIsDeleting] = useState(false)
+  const [reorderingPageId, setReorderingPageId] = useState<number | null>(null)
+  const [draggingPageId, setDraggingPageId] = useState<number | null>(null)
+  const [dragSnapshot, setDragSnapshot] = useState<ProgramPage[] | null>(null)
   const [toolbarState, setToolbarState] = useState({
     fontSize: '14px',
     bold: false,
@@ -156,7 +160,7 @@ export default function AcademySettingsPage() {
         codeBlock: false,
       }),
       Link.configure({ openOnClick: true }),
-      Image,
+      TiptapImage,
       Youtube.configure({ width: 640, height: 360 }),
       Underline,
       TextStyle,
@@ -173,7 +177,7 @@ export default function AcademySettingsPage() {
     extensions: [
       StarterKit.configure({ heading: false, codeBlock: false }),
       Link.configure({ openOnClick: true }),
-      Image,
+      TiptapImage,
       Youtube.configure({ width: 640, height: 360 }),
       Underline,
       TextStyle,
@@ -199,6 +203,13 @@ export default function AcademySettingsPage() {
     () => programs.find((program) => program.id === selectedProgramId) ?? null,
     [programs, selectedProgramId]
   )
+
+  const emptyDragImage = useMemo(() => {
+    if (typeof window === 'undefined') return null
+    const img = new window.Image()
+    img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=='
+    return img
+  }, [])
 
   const filteredProgramPages = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -349,10 +360,14 @@ export default function AcademySettingsPage() {
           .single()
         if (!data) return
 
+        const nextOrderIndex = programPages.length
+          ? Math.max(...programPages.map((page) => page.order_index)) + 1
+          : 0
+
         await supabase.from('academy_program_pages').insert({
           program_id: selectedProgramId,
           page_id: (data as Page).id,
-          order_index: programPages.length,
+          order_index: nextOrderIndex,
           is_required: true,
         })
       }
@@ -365,6 +380,35 @@ export default function AcademySettingsPage() {
       console.error('Failed to save academy page:', error)
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const reorderProgramPagesLocal = (draggedId: number, targetId: number) => {
+    if (draggedId === targetId) return
+    const currentIndex = programPages.findIndex((page) => page.id === draggedId)
+    const targetIndex = programPages.findIndex((page) => page.id === targetId)
+    if (currentIndex === -1 || targetIndex === -1) return
+    const next = [...programPages]
+    const [moved] = next.splice(currentIndex, 1)
+    next.splice(targetIndex, 0, moved)
+    setProgramPages(next.map((page, index) => ({ ...page, order_index: index })))
+  }
+
+  const persistProgramPagesOrder = async (pages: ProgramPage[]) => {
+    if (!selectedProgramId) return
+    setReorderingPageId(draggingPageId)
+    try {
+      await Promise.all(
+        pages.map((page, index) =>
+          supabase.from('academy_program_pages').update({ order_index: index }).eq('id', page.id)
+        )
+      )
+      await loadProgramPages(selectedProgramId)
+    } catch (error) {
+      console.error('Failed to reorder academy pages:', error)
+      if (dragSnapshot) setProgramPages(dragSnapshot)
+    } finally {
+      setReorderingPageId(null)
     }
   }
 
@@ -812,11 +856,48 @@ export default function AcademySettingsPage() {
                                 year: 'numeric',
                               })
                             : '—'
-
                           return (
-                            <tr key={row.id} className="hover:bg-gray-50 transition-colors group">
+                            <tr
+                              key={row.id}
+                              className={`transition-colors group ${
+                                draggingPageId
+                                  ? draggingPageId === row.id
+                                    ? 'bg-gray-50'
+                                    : ''
+                                  : 'hover:bg-gray-50'
+                              }`}
+                              onDragOver={(event) => {
+                                if (!draggingPageId || draggingPageId === row.id) return
+                                event.preventDefault()
+                                reorderProgramPagesLocal(draggingPageId, row.id)
+                              }}
+                            >
                               <td className="px-6 py-4 whitespace-nowrap text-[12px] text-gray-700">
                                 <div className="flex items-center gap-3">
+                                  <span
+                                    className="text-gray-300 group-hover:text-gray-500 cursor-grab active:cursor-grabbing"
+                                    title="Drag to reorder"
+                                    aria-hidden="true"
+                                    draggable
+                                    onDragStart={(event) => {
+                                      event.dataTransfer.effectAllowed = 'move'
+                                      event.dataTransfer.setData('text/plain', String(row.id))
+                                      if (emptyDragImage) {
+                                        event.dataTransfer.setDragImage(emptyDragImage, 0, 0)
+                                      }
+                                      setDragSnapshot(programPages)
+                                      setDraggingPageId(row.id)
+                                    }}
+                                    onDragEnd={() => {
+                                      if (dragSnapshot) {
+                                        persistProgramPagesOrder(programPages)
+                                      }
+                                      setDraggingPageId(null)
+                                      setDragSnapshot(null)
+                                    }}
+                                  >
+                                    <GripVertical className="w-4 h-4" />
+                                  </span>
                                   <div
                                     className={`flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center ${
                                       isTask ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'

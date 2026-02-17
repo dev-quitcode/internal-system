@@ -714,9 +714,7 @@ export default function ProfilePage() {
             )}
           </div>
           <div>
-            {requestedEmployeeId ? (
-              <p className="text-[12px] text-slate-500 font-medium">Employee details</p>
-            ) : null}
+            {null}
             <h1 className="text-[22px] font-extrabold text-slate-900 tracking-tight">{fullName}</h1>
             <div className="mt-3 inline-flex items-center gap-2 rounded-xl bg-blue-50 px-3 py-1.5 text-[12px] font-semibold text-blue-700">
               <Briefcase className="h-4 w-4" />

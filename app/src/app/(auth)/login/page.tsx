@@ -90,9 +90,9 @@ export default function LoginPage() {
               </g>
             </svg>
           </div>
-          <h1>All your workflows in one place</h1>
+          <h1>QC Internal System</h1>
           <p className="description">
-            Everything your team needs to track, manage, and collaborate effectively.
+            We deliver automation solutions that sling-shot your big ideas.
           </p>
         </section>
 

@@ -266,12 +266,20 @@ export default function TeamPage() {
                             {member.email}
                           </td>
                           <td className="px-5 py-4 border-b border-gray-100 text-right">
-                            <Link
-                              href={`/profile?employeeId=${member.id}`}
-                              className="inline-flex items-center justify-center px-3 py-1.5 text-[11px] font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-lg hover:bg-indigo-100 transition-colors"
-                            >
-                              Open profile
-                            </Link>
+                            <div className="inline-flex items-center gap-2">
+                              <Link
+                                href={`/academy/manage?employeeId=${member.id}`}
+                                className="inline-flex items-center justify-center px-3 py-1.5 text-[11px] font-semibold text-cyan-700 bg-cyan-50 border border-cyan-100 rounded-lg hover:bg-cyan-100 transition-colors"
+                              >
+                                Academy progress
+                              </Link>
+                              <Link
+                                href={`/profile?employeeId=${member.id}`}
+                                className="inline-flex items-center justify-center px-3 py-1.5 text-[11px] font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-lg hover:bg-indigo-100 transition-colors"
+                              >
+                                Open profile
+                              </Link>
+                            </div>
                           </td>
                         </tr>
                       )
