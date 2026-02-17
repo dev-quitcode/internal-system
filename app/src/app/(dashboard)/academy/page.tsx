@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { BookOpen, ClipboardList, MessageSquarePlus, Send } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { BookOpen, MessageSquarePlus } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useEmployee } from '@/lib/hooks/useEmployee'
 import { EditorContent, useEditor } from '@tiptap/react'
@@ -65,11 +65,11 @@ export default function AcademyPage() {
   const [assignmentPages, setAssignmentPages] = useState<AssignmentPage[]>([])
   const [selectedAssignmentPageId, setSelectedAssignmentPageId] = useState<number | null>(null)
   const [isLoadingAssignments, setIsLoadingAssignments] = useState(false)
-  const [submissionText, setSubmissionText] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [comments, setComments] = useState<CommentRow[]>([])
   const [isCommenting, setIsCommenting] = useState(false)
+  const [commentBoxHeight, setCommentBoxHeight] = useState(40)
+  const isResizingComment = useRef(false)
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -117,10 +117,30 @@ export default function AcademyPage() {
   useEffect(() => {
     if (!selectedAssignmentPage) return
     editor?.commands.setContent(selectedAssignmentPage.page?.content ?? {})
-    setSubmissionText('')
-    loadSubmission(selectedAssignmentPage.id)
     loadComments(selectedAssignmentPage.id)
   }, [selectedAssignmentPage?.id, editor])
+
+  useEffect(() => {
+    const handleMouseMove = (event: MouseEvent) => {
+      if (!isResizingComment.current) return
+      const delta = event.movementY * -1
+      setCommentBoxHeight((prev) => {
+        const next = Math.min(160, Math.max(40, prev + delta))
+        return next
+      })
+    }
+
+    const handleMouseUp = () => {
+      isResizingComment.current = false
+    }
+
+    window.addEventListener('mousemove', handleMouseMove)
+    window.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+    }
+  }, [])
 
   const loadAssignments = async () => {
     if (!employee) return
@@ -180,19 +200,6 @@ export default function AcademyPage() {
     setIsLoadingAssignments(false)
   }
 
-  const loadSubmission = async (assignmentPageId: number) => {
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('academy_task_submissions')
-      .select('*')
-      .eq('assignment_page_id', assignmentPageId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-
-    const latest = data?.[0] as { content?: { text?: string } } | undefined
-    setSubmissionText(latest?.content?.text ?? '')
-  }
-
   const loadComments = async (assignmentPageId: number) => {
     const supabase = createClient()
     const { data } = await supabase
@@ -219,17 +226,6 @@ export default function AcademyPage() {
         prev.map((item) => (item.id === assignmentPage.id ? assignmentPage : item))
       )
     }
-  }
-
-  const submitTask = async () => {
-    if (!selectedAssignmentPage || !submissionText.trim()) return
-    setIsSubmitting(true)
-    const supabase = createClient()
-    await supabase.from('academy_task_submissions').insert({
-      assignment_page_id: selectedAssignmentPage.id,
-      content: { text: submissionText.trim() },
-    })
-    setIsSubmitting(false)
   }
 
   const submitComment = async () => {
@@ -350,28 +346,6 @@ export default function AcademyPage() {
                         <EditorContent editor={editor} />
                       </div>
 
-                      {selectedAssignmentPage.page.page_type === 'TASK' && (
-                        <div className="border border-gray-200 rounded-xl p-4">
-                          <div className="text-[11px] font-semibold text-gray-600 mb-2 uppercase tracking-widest">
-                            Your answer
-                          </div>
-                          <textarea
-                            value={submissionText}
-                            onChange={(event) => setSubmissionText(event.target.value)}
-                            rows={6}
-                            placeholder="Write your answer here..."
-                            className="w-full text-[13px] border border-gray-200 rounded-xl p-4 focus:outline-none focus:ring-2 focus:ring-[rgb(10_194_255)]/20"
-                          />
-                          <button
-                            type="button"
-                            onClick={submitTask}
-                            disabled={isSubmitting || !submissionText.trim()}
-                            className="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-[12px] font-semibold rounded-xl bg-[rgb(10_194_255)] text-white disabled:opacity-50"
-                          >
-                            <Send className="w-3.5 h-3.5" /> Submit
-                          </button>
-                        </div>
-                      )}
                     </div>
                   </>
                 ) : (
@@ -413,12 +387,19 @@ export default function AcademyPage() {
                   </div>
 
                   <div className="p-4 border-t">
+                    <div
+                      className="w-full h-2 cursor-ns-resize"
+                      onMouseDown={() => {
+                        isResizingComment.current = true
+                      }}
+                    />
                     <textarea
                       value={commentText}
                       onChange={(event) => setCommentText(event.target.value)}
                       rows={3}
                       placeholder="Add a comment..."
-                      className="w-full text-[12px] border border-gray-100 rounded-lg p-2 focus:outline-none focus:border-[rgb(10_194_255)] bg-gray-50"
+                      className="w-full text-[12px] border border-gray-100 rounded-lg p-2 focus:outline-none focus:border-[rgb(10_194_255)] bg-gray-50 resize-none overflow-y-auto"
+                      style={{ height: commentBoxHeight }}
                     />
                     <button
                       type="button"
