@@ -1,7 +1,16 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { BookOpen, MessageSquarePlus } from 'lucide-react'
+import {
+  ArrowRight,
+  BookOpen,
+  Briefcase,
+  CodeSquare,
+  GraduationCap,
+  Sparkles,
+  Target,
+  Users,
+} from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useEmployee } from '@/lib/hooks/useEmployee'
 import { EditorContent, useEditor } from '@tiptap/react'
@@ -20,6 +29,8 @@ type AssignmentProgram = {
     id: number
     name: string
     description: string | null
+    type_id: number | null
+    type?: { id: number; icon: string | null } | null
   }
 }
 
@@ -60,10 +71,40 @@ function statusLabel(value: string) {
   return option?.label ?? value
 }
 
+function progressLabel(pages: AssignmentPage[]) {
+  if (!pages.length) return '0/0 completed'
+  const completed = pages.filter((page) => page.status === 'done').length
+  const percent = Math.round((completed / pages.length) * 100)
+  return `${completed}/${pages.length} completed • ${percent}%`
+}
+
+const academyIcons = [
+  { value: 'graduation-cap', icon: GraduationCap },
+  { value: 'book-open', icon: BookOpen },
+  { value: 'code-square', icon: CodeSquare },
+  { value: 'users', icon: Users },
+  { value: 'target', icon: Target },
+  { value: 'briefcase', icon: Briefcase },
+  { value: 'sparkles', icon: Sparkles },
+] as const
+
+function getAcademyIcon(iconValue: string | null | undefined) {
+  const match = academyIcons.find((item) => item.value === iconValue)
+  return match?.icon ?? GraduationCap
+}
+
+function progressStats(pages: AssignmentPage[]) {
+  const total = pages.length
+  const completed = pages.filter((page) => page.status === 'done').length
+  const percent = total ? Math.round((completed / total) * 100) : 0
+  return { total, completed, percent }
+}
+
 export default function AcademyPage() {
   const { employee, isLoading } = useEmployee()
   const [assignmentPages, setAssignmentPages] = useState<AssignmentPage[]>([])
   const [selectedAssignmentPageId, setSelectedAssignmentPageId] = useState<number | null>(null)
+  const [selectedProgramId, setSelectedProgramId] = useState<number | null>(null)
   const [isLoadingAssignments, setIsLoadingAssignments] = useState(false)
   const [commentText, setCommentText] = useState('')
   const [comments, setComments] = useState<CommentRow[]>([])
@@ -102,11 +143,21 @@ export default function AcademyPage() {
     return Array.from(groups.values())
   }, [assignmentPages])
 
+  const selectedProgramGroup = useMemo(() => {
+    if (selectedProgramId === null) return null
+    return groupedPrograms.find((group) => group.assignment.program_id === selectedProgramId) ?? null
+  }, [groupedPrograms, selectedProgramId])
+
+  const visiblePages = useMemo(() => {
+    if (!selectedProgramGroup) return []
+    return selectedProgramGroup.pages
+  }, [selectedProgramGroup])
+
   const progressPercent = useMemo(() => {
-    if (!assignmentPages.length) return 0
-    const completed = assignmentPages.filter((page) => page.status === 'done').length
-    return Math.round((completed / assignmentPages.length) * 100)
-  }, [assignmentPages])
+    if (!visiblePages.length) return 0
+    const completed = visiblePages.filter((page) => page.status === 'done').length
+    return Math.round((completed / visiblePages.length) * 100)
+  }, [visiblePages])
 
   useEffect(() => {
     if (employee) {
@@ -162,7 +213,7 @@ export default function AcademyPage() {
           program_id,
           status,
           assigned_at,
-          program:academy_programs ( id, name, description )
+          program:academy_programs ( id, name, description, type_id, type:academy_types ( id, icon ) )
         ),
         page:academy_pages ( id, title, page_type, content, category:academy_categories ( id, name ) )
       `
@@ -194,9 +245,6 @@ export default function AcademyPage() {
     })
 
     setAssignmentPages(sorted)
-    if (!selectedAssignmentPageId && sorted.length > 0) {
-      setSelectedAssignmentPageId(sorted[0].id)
-    }
     setIsLoadingAssignments(false)
   }
 
@@ -260,159 +308,248 @@ export default function AcademyPage() {
         <div className="rounded-2xl border border-dashed border-gray-200 p-10 text-center text-gray-500 text-[12px]">
           You have no assigned academy pages yet.
         </div>
-      ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[calc(100vh-120px)] overflow-hidden min-h-0">
-            <div className={`lg:col-span-9 h-full min-h-0 ${selectedAssignmentPage ? '' : 'lg:col-span-12'}`}>
-              <div className="rounded-2xl border border-gray-100 bg-white shadow-sm h-full min-h-0 overflow-hidden">
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full min-h-0">
-                  <aside className="lg:col-span-4 h-full min-h-0 border-r border-gray-100">
-                    <div className="p-4 border-b">
-                      <div className="text-[13px] font-semibold text-gray-900">Developer Academy</div>
-                      <div className="mt-2 h-2 w-full rounded-full bg-gray-100">
-                        <div
-                          className="h-2 rounded-full bg-[rgb(10_194_255)]"
-                          style={{ width: `${progressPercent}%` }}
-                        />
-                      </div>
-                      <div className="mt-1 text-[10px] text-gray-500">{progressPercent}% completed</div>
-                      <div className="mt-4 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                        Content
-                      </div>
+      ) : selectedProgramId === null ? (
+        <div className="mx-auto w-full max-w-7xl rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">
+          <div className="mb-8">
+            <h1 className="text-[16px] font-semibold text-gray-900 tracking-tight">Choose an academy</h1>
+            <p className="text-[12px] text-gray-500 mt-2">
+              Select your assigned path to start or continue your learning journey.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {groupedPrograms.map((group) => {
+              const { completed, total, percent } = progressStats(group.pages)
+              const Icon = getAcademyIcon(group.assignment.program.type?.icon)
+              const isActive = percent > 0 && percent < 100
+              const isCompleted = percent === 100 && total > 0
+              const statusLabelText = isCompleted ? 'Completed' : isActive ? 'In Progress' : 'Not Started'
+              const statusClass = isCompleted
+                ? 'bg-green-100 text-green-700'
+                : isActive
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-gray-100 text-gray-600'
+              const fillColor = isActive || isCompleted ? 'bg-blue-500' : 'bg-purple-500'
+              const buttonStyle = isActive || isCompleted
+                ? 'bg-gray-900 text-white hover:bg-black'
+                : 'bg-white text-gray-900 border-2 border-gray-200 hover:bg-gray-50 hover:border-gray-300'
+
+              return (
+                <div
+                  key={group.assignment.id}
+                  className="relative bg-white rounded-2xl border border-gray-100 p-6 shadow-sm transition-shadow hover:shadow-md hover:border-gray-200"
+                >
+                  <div className={`absolute top-6 right-6 text-[11px] font-bold px-3 py-1.5 rounded-full uppercase tracking-wide ${statusClass}`}>
+                    {statusLabelText}
+                  </div>
+                  <div
+                    className={`h-[46px] w-[46px] mb-5 flex items-center justify-center rounded-xl ${
+                      isActive || isCompleted ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                  </div>
+                  <h2 className="text-[13px] font-semibold text-gray-900 mb-2">{group.assignment.program.name}</h2>
+                  <p className="text-[12px] text-gray-500 leading-5 mb-6">
+                    {group.assignment.program.description || 'Open academy pages'}
+                  </p>
+
+                  <div className="mb-6">
+                    <div className="flex items-end justify-between mb-2">
+                      <span className="text-[11px] font-semibold text-gray-900">Total Completion</span>
+                      <span className="text-[12px] font-semibold text-gray-900">{percent}%</span>
                     </div>
-                    <div className="p-3 pb-10 overflow-y-auto pr-1 h-[calc(100%-92px)]">
-                      {groupedPrograms.map((group) => (
-                        <div key={group.assignment.id} className="space-y-1">
-                          {group.pages.map((page) => (
-                            <button
-                              key={page.id}
-                              onClick={() => setSelectedAssignmentPageId(page.id)}
-                              className={`w-full text-left px-3 py-2 rounded-lg transition-colors text-[12px] flex items-center justify-between gap-2 ${
-                                selectedAssignmentPageId === page.id
-                                  ? 'bg-cyan-50 text-cyan-700 border border-cyan-200'
-                                  : 'hover:bg-gray-50 text-gray-700'
-                              }`}
-                            >
-                              <div>
-                                <div className="text-gray-900">{page.page.title}</div>
-                                <div className="text-[11px] text-gray-500">
-                                  {page.page.page_type === 'TASK' ? 'Task' : 'Theory'}
-                                  {page.page.category ? ` • ${page.page.category.name}` : ''}
-                                </div>
-                              </div>
-                              <span className="text-[10px] text-gray-500 uppercase">
-                                {statusLabel(page.status)}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
+                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-700 ${fillColor}`}
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
+                    <span className="text-[11px] text-gray-500 mt-2 block">
+                      {completed} of {total} modules completed
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedProgramId(group.assignment.program_id)
+                      setSelectedAssignmentPageId(group.pages[0]?.id ?? null)
+                    }}
+                    className={`w-full py-3 rounded-xl text-[12px] font-semibold flex items-center justify-center gap-2 transition-colors ${buttonStyle}`}
+                  >
+                    {isActive || isCompleted ? 'Continue Learning' : 'Start Academy'}
+                    {isActive || isCompleted ? <ArrowRight className="w-4 h-4" /> : null}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-[calc(100vh-120px)] overflow-hidden min-h-0">
+          <div className={`lg:col-span-9 h-full min-h-0 ${selectedAssignmentPage ? '' : 'lg:col-span-12'}`}>
+            <div className="rounded-2xl border border-gray-100 bg-white shadow-sm h-full min-h-0 overflow-hidden">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 h-full min-h-0">
+                <aside className="lg:col-span-4 h-full min-h-0 border-r border-gray-100">
+                  <div className="p-4 border-b">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[13px] font-semibold text-gray-900">
+                        {selectedProgramGroup?.assignment.program.name ?? 'Academy'}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedProgramId(null)
+                          setSelectedAssignmentPageId(null)
+                        }}
+                        className="text-[11px] text-gray-400 hover:text-gray-700"
+                      >
+                        Change
+                      </button>
+                    </div>
+                    <div className="mt-2 h-2 w-full rounded-full bg-gray-100">
+                      <div
+                        className="h-2 rounded-full bg-[rgb(10_194_255)]"
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                    </div>
+                    <div className="mt-1 text-[10px] text-gray-500">{progressPercent}% completed</div>
+                    <div className="mt-4 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Content</div>
+                  </div>
+                  <div className="p-3 pb-10 overflow-y-auto pr-1 h-[calc(100%-92px)]">
+                    <div className="space-y-1">
+                      {visiblePages.map((page) => (
+                        <button
+                          key={page.id}
+                          onClick={() => setSelectedAssignmentPageId(page.id)}
+                          className={`w-full text-left px-3 py-2 rounded-lg transition-colors text-[12px] flex items-center justify-between gap-2 ${
+                            selectedAssignmentPageId === page.id
+                              ? 'bg-cyan-50 text-cyan-700 border border-cyan-200'
+                              : 'hover:bg-gray-50 text-gray-700'
+                          }`}
+                        >
+                          <div>
+                            <div className="text-gray-900">{page.page.title}</div>
+                            <div className="text-[11px] text-gray-500">
+                              {page.page.page_type === 'TASK' ? 'Task' : 'Theory'}
+                              {page.page.category ? ` • ${page.page.category.name}` : ''}
+                            </div>
+                          </div>
+                          <span className="text-[10px] text-gray-500 uppercase">{statusLabel(page.status)}</span>
+                        </button>
                       ))}
                     </div>
-                  </aside>
-
-                  <section className="lg:col-span-8 h-full min-h-0">
-                    <div className="p-8 h-full flex flex-col min-h-0">
-                {selectedAssignmentPage ? (
-                  <>
-                    <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
-                      <div>
-                        <span className="text-[10px] font-bold text-[rgb(10_194_255)] uppercase tracking-widest">
-                          {selectedAssignmentPage.page.page_type === 'TASK' ? 'Task' : 'Theory'}
-                          {selectedAssignmentPage.page.category ? ` • ${selectedAssignmentPage.page.category.name}` : ''}
-                        </span>
-                        <div className="text-[24px] font-bold text-gray-900 mt-1">
-                          {selectedAssignmentPage.page.title}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <select
-                          value={selectedAssignmentPage.status}
-                          onChange={(event) => updateStatus(selectedAssignmentPage, event.target.value)}
-                          className="px-4 py-1.5 text-[11px] font-semibold rounded-full bg-yellow-100 text-yellow-700 border border-yellow-200"
-                        >
-                          {STATUS_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        {selectedAssignmentPage.score !== null && (
-                          <div className="text-[12px] text-gray-500">Score: {selectedAssignmentPage.score}</div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="space-y-4 overflow-y-auto overflow-x-hidden flex-1 pr-1 min-h-0">
-                      <div className="min-h-[260px] text-[13px] text-gray-700">
-                        <EditorContent editor={editor} />
-                      </div>
-
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-[12px] text-gray-500">Select a page to view content.</div>
-                )}
-                    </div>
-                  </section>
-                </div>
-              </div>
-            </div>
-
-            {selectedAssignmentPage && (
-              <aside className="lg:col-span-3 flex flex-col h-full min-h-0">
-                <div className="rounded-2xl border border-gray-100 overflow-hidden bg-white shadow-sm flex flex-col h-full">
-                  <div className="p-4 border-b flex justify-between items-center">
-                    <h3 className="text-[13px] font-bold text-gray-800">Comments ({comments.length})</h3>
                   </div>
+                </aside>
 
-                  <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {comments.length === 0 ? (
-                      <div className="text-[12px] text-gray-500">No comments yet.</div>
-                    ) : (
-                      comments.map((comment) => (
-                        <div key={comment.id} className="bg-gray-50 p-3 rounded-lg">
-                          <div className="flex items-center justify-between mb-1">
-                            <span className="text-[11px] font-semibold text-gray-700">
-                              {comment.author?.first_name || comment.author?.last_name
-                                ? `${comment.author?.first_name ?? ''} ${comment.author?.last_name ?? ''}`.trim()
-                                : comment.author?.email ?? 'User'}
+                <section className="lg:col-span-8 h-full min-h-0">
+                  <div className="p-8 h-full flex flex-col min-h-0">
+                    {selectedAssignmentPage ? (
+                      <>
+                        <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
+                          <div>
+                            <span className="text-[10px] font-bold text-[rgb(10_194_255)] uppercase tracking-widest">
+                              {selectedAssignmentPage.page.page_type === 'TASK' ? 'Task' : 'Theory'}
+                              {selectedAssignmentPage.page.category
+                                ? ` • ${selectedAssignmentPage.page.category.name}`
+                                : ''}
                             </span>
-                            <span className="text-[10px] text-gray-400">
-                              {format(new Date(comment.created_at), 'dd.MM.yyyy')}
-                            </span>
+                            <div className="text-[24px] font-bold text-gray-900 mt-1">
+                              {selectedAssignmentPage.page.title}
+                            </div>
                           </div>
-                          <p className="text-[12px] text-gray-600">{comment.comment}</p>
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={selectedAssignmentPage.status}
+                              onChange={(event) => updateStatus(selectedAssignmentPage, event.target.value)}
+                              className="px-4 py-1.5 text-[11px] font-semibold rounded-full bg-yellow-100 text-yellow-700 border border-yellow-200"
+                            >
+                              {STATUS_OPTIONS.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                            {selectedAssignmentPage.score !== null && (
+                              <div className="text-[12px] text-gray-500">
+                                Score: {selectedAssignmentPage.score}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      ))
+
+                        <div className="space-y-4 overflow-y-auto overflow-x-hidden flex-1 pr-1 min-h-0">
+                          <div className="min-h-[260px] text-[13px] text-gray-700">
+                            <EditorContent editor={editor} />
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-[12px] text-gray-500">Select a page to view content.</div>
                     )}
                   </div>
+                </section>
+              </div>
+            </div>
+          </div>
 
-                  <div className="p-4 border-t">
-                    <div
-                      className="w-full h-2 cursor-ns-resize"
-                      onMouseDown={() => {
-                        isResizingComment.current = true
-                      }}
-                    />
-                    <textarea
-                      value={commentText}
-                      onChange={(event) => setCommentText(event.target.value)}
-                      rows={3}
-                      placeholder="Add a comment..."
-                      className="w-full text-[12px] border border-gray-100 rounded-lg p-2 focus:outline-none focus:border-[rgb(10_194_255)] bg-gray-50 resize-none overflow-y-auto"
-                      style={{ height: commentBoxHeight }}
-                    />
-                    <button
-                      type="button"
-                      onClick={submitComment}
-                      disabled={isCommenting || !commentText.trim()}
-                      className="mt-2 w-full text-[12px] bg-gray-900 text-white py-2 rounded-lg font-semibold hover:bg-black disabled:opacity-50"
-                    >
-                      Send
-                    </button>
-                  </div>
+          {selectedAssignmentPage && (
+            <aside className="lg:col-span-3 flex flex-col h-full min-h-0">
+              <div className="rounded-2xl border border-gray-100 overflow-hidden bg-white shadow-sm flex flex-col h-full">
+                <div className="p-4 border-b flex justify-between items-center">
+                  <h3 className="text-[13px] font-bold text-gray-800">Comments ({comments.length})</h3>
                 </div>
-              </aside>
-            )}
+
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {comments.length === 0 ? (
+                    <div className="text-[12px] text-gray-500">No comments yet.</div>
+                  ) : (
+                    comments.map((comment) => (
+                      <div key={comment.id} className="bg-gray-50 p-3 rounded-lg">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[11px] font-semibold text-gray-700">
+                            {comment.author?.first_name || comment.author?.last_name
+                              ? `${comment.author?.first_name ?? ''} ${comment.author?.last_name ?? ''}`.trim()
+                              : comment.author?.email ?? 'User'}
+                          </span>
+                          <span className="text-[10px] text-gray-400">
+                            {format(new Date(comment.created_at), 'dd.MM.yyyy')}
+                          </span>
+                        </div>
+                        <p className="text-[12px] text-gray-600">{comment.comment}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="p-4 border-t">
+                  <div
+                    className="w-full h-2 cursor-ns-resize"
+                    onMouseDown={() => {
+                      isResizingComment.current = true
+                    }}
+                  />
+                  <textarea
+                    value={commentText}
+                    onChange={(event) => setCommentText(event.target.value)}
+                    rows={3}
+                    placeholder="Add a comment..."
+                    className="w-full text-[12px] border border-gray-100 rounded-lg p-2 focus:outline-none focus:border-[rgb(10_194_255)] bg-gray-50 resize-none overflow-y-auto"
+                    style={{ height: commentBoxHeight }}
+                  />
+                  <button
+                    type="button"
+                    onClick={submitComment}
+                    disabled={isCommenting || !commentText.trim()}
+                    className="mt-2 w-full text-[12px] bg-gray-900 text-white py-2 rounded-lg font-semibold hover:bg-black disabled:opacity-50"
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+            </aside>
+          )}
         </div>
       )}
     </>

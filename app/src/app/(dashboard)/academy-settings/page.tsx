@@ -9,7 +9,12 @@ import {
   Link as LinkIcon,
   Video,
   BookOpen,
+  Briefcase,
+  CodeSquare,
+  GraduationCap,
   Pencil,
+  Sparkles,
+  Target,
   Eye,
   AlignLeft,
   AlignCenter,
@@ -25,6 +30,7 @@ import {
   ClipboardList,
   Trash2,
   GripVertical,
+  Users,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useEmployee } from '@/lib/hooks/useEmployee'
@@ -43,7 +49,7 @@ import json from 'highlight.js/lib/languages/json'
 
 type Category = { id: number; name: string; description: string | null }
 type Page = { id: number; title: string; page_type: 'THEORY' | 'TASK'; category_id: number | null; content?: any; updated_at?: string | null }
-type AcademyType = { id: number; name: string; description: string | null }
+type AcademyType = { id: number; name: string; description: string | null; icon: string | null }
 type Program = { id: number; name: string; description: string | null; type_id: number | null }
 type ProgramPage = { id: number; page_id: number; order_index: number; is_required: boolean; page: Page & { category: Category | null } }
 
@@ -139,6 +145,13 @@ export default function AcademySettingsPage() {
   const [deleteToken, setDeleteToken] = useState('')
   const [deleteInput, setDeleteInput] = useState('')
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isCreatingAcademy, setIsCreatingAcademy] = useState(false)
+  const [isAcademyModalOpen, setIsAcademyModalOpen] = useState(false)
+  const [academyFormMode, setAcademyFormMode] = useState<'create' | 'edit'>('create')
+  const [academyFormId, setAcademyFormId] = useState<number | null>(null)
+  const [newAcademyName, setNewAcademyName] = useState('')
+  const [newAcademyDescription, setNewAcademyDescription] = useState('')
+  const [newAcademyIcon, setNewAcademyIcon] = useState('graduation-cap')
   const [reorderingPageId, setReorderingPageId] = useState<number | null>(null)
   const [draggingPageId, setDraggingPageId] = useState<number | null>(null)
   const [dragSnapshot, setDragSnapshot] = useState<ProgramPage[] | null>(null)
@@ -202,6 +215,10 @@ export default function AcademySettingsPage() {
   const selectedProgram = useMemo(
     () => programs.find((program) => program.id === selectedProgramId) ?? null,
     [programs, selectedProgramId]
+  )
+  const selectedType = useMemo(
+    () => academyTypes.find((type) => type.id === selectedTypeId) ?? null,
+    [academyTypes, selectedTypeId]
   )
 
   const emptyDragImage = useMemo(() => {
@@ -304,6 +321,16 @@ export default function AcademySettingsPage() {
     setPrograms((programData || []) as Program[])
   }
 
+  const academyIcons = [
+    { value: 'graduation-cap', label: 'Graduation', icon: GraduationCap },
+    { value: 'book-open', label: 'Book', icon: BookOpen },
+    { value: 'code-square', label: 'Code', icon: CodeSquare },
+    { value: 'users', label: 'Team', icon: Users },
+    { value: 'target', label: 'Target', icon: Target },
+    { value: 'briefcase', label: 'Career', icon: Briefcase },
+    { value: 'sparkles', label: 'Sparkles', icon: Sparkles },
+  ] as const
+
   const loadProgramPages = async (programId: number) => {
     const { data, error } = await supabase
       .from('academy_program_pages')
@@ -331,6 +358,85 @@ export default function AcademySettingsPage() {
       setCategories((prev) => [...prev, data as Category])
       setNewCategoryName('')
     }
+  }
+
+  const createAcademyType = async () => {
+    if (!newAcademyName.trim()) return
+    setIsCreatingAcademy(true)
+    try {
+      const { data, error } = await supabase
+        .from('academy_types')
+        .insert({
+          name: newAcademyName.trim(),
+          description: newAcademyDescription.trim() || null,
+          icon: newAcademyIcon,
+        })
+        .select()
+        .single()
+      if (error) {
+        console.error('Failed to create academy type:', error)
+        return
+      }
+      if (data) setAcademyTypes((prev) => [...prev, data as AcademyType])
+      resetAcademyForm()
+    } finally {
+      setIsCreatingAcademy(false)
+    }
+  }
+
+  const updateAcademyType = async () => {
+    if (!academyFormId || !newAcademyName.trim()) return
+    setIsCreatingAcademy(true)
+    try {
+      const { data, error } = await supabase
+        .from('academy_types')
+        .update({
+          name: newAcademyName.trim(),
+          description: newAcademyDescription.trim() || null,
+          icon: newAcademyIcon,
+        })
+        .eq('id', academyFormId)
+        .select()
+        .single()
+      if (error) {
+        console.error('Failed to update academy type:', error)
+        return
+      }
+      if (data) {
+        setAcademyTypes((prev) => prev.map((item) => (item.id === academyFormId ? (data as AcademyType) : item)))
+      }
+      resetAcademyForm()
+    } finally {
+      setIsCreatingAcademy(false)
+    }
+  }
+
+  const resetAcademyForm = () => {
+    setNewAcademyName('')
+    setNewAcademyDescription('')
+    setNewAcademyIcon('graduation-cap')
+    setAcademyFormId(null)
+    setAcademyFormMode('create')
+    setIsAcademyModalOpen(false)
+  }
+
+  const openCreateAcademy = () => {
+    setAcademyFormMode('create')
+    setAcademyFormId(null)
+    setNewAcademyName('')
+    setNewAcademyDescription('')
+    setNewAcademyIcon('graduation-cap')
+    setIsAcademyModalOpen(true)
+  }
+
+  const openEditAcademy = () => {
+    if (!selectedType) return
+    setAcademyFormMode('edit')
+    setAcademyFormId(selectedType.id)
+    setNewAcademyName(selectedType.name)
+    setNewAcademyDescription(selectedType.description ?? '')
+    setNewAcademyIcon(selectedType.icon ?? 'graduation-cap')
+    setIsAcademyModalOpen(true)
   }
 
   const createPage = async () => {
@@ -482,6 +588,27 @@ export default function AcademySettingsPage() {
                   </p>
                 </div>
           <div className="flex items-center gap-3">
+            {!selectedTypeId && (
+              <button
+                type="button"
+                onClick={openCreateAcademy}
+                disabled={isCreatingAcademy}
+                className="mt-4 sm:mt-0 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-lg shadow-sm transition-colors flex items-center gap-2 text-[12px] disabled:opacity-50"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Add academy
+              </button>
+            )}
+            {selectedTypeId && !showEditor && (
+              <button
+                type="button"
+                onClick={openEditAcademy}
+                className="mt-4 sm:mt-0 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-lg shadow-sm transition-colors flex items-center gap-2 text-[12px]"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+                Edit academy
+              </button>
+            )}
             {!showEditor && selectedTypeId && (
               <button
                 type="button"
@@ -532,7 +659,16 @@ export default function AcademySettingsPage() {
                 onClick={() => setSelectedTypeId(type.id)}
                 className="text-left rounded-2xl border border-gray-200 p-5 hover:shadow-sm transition-shadow"
               >
-                <div className="text-[13px] font-semibold text-gray-900">{type.name}</div>
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    {(() => {
+                      const match = academyIcons.find((icon) => icon.value === type.icon)
+                      const Icon = match?.icon ?? GraduationCap
+                      return <Icon className="w-4 h-4" />
+                    })()}
+                  </div>
+                  <div className="text-[13px] font-semibold text-gray-900">{type.name}</div>
+                </div>
                 <div className="text-[12px] text-gray-500 mt-1">
                   {type.description || 'Open academy pages'}
                 </div>
@@ -1007,6 +1143,94 @@ export default function AcademySettingsPage() {
                 </div>
                 <div className="p-6 overflow-auto max-h-[75vh] tiptap-editor">
                   <EditorContent editor={previewEditor} />
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+      {isMounted && isAcademyModalOpen
+        ? createPortal(
+            <div className="fixed inset-0 z-[2147483647] flex items-center justify-center">
+              <div
+                className="absolute inset-0 bg-black/40"
+                onClick={() => {
+                  if (isCreatingAcademy) return
+                  resetAcademyForm()
+                }}
+              />
+              <div className="relative bg-white rounded-2xl border border-gray-200 shadow-xl w-[90vw] max-w-md overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <div className="text-[14px] font-semibold text-gray-900">
+                    {academyFormMode === 'edit' ? 'Edit academy' : 'Add academy'}
+                  </div>
+                  <div className="text-[12px] text-gray-500 mt-1">Set name, description and icon.</div>
+                </div>
+                <div className="px-6 py-5 space-y-4">
+                  <div>
+                    <label className="block text-[12px] font-medium text-gray-700 mb-1">Name</label>
+                    <input
+                      type="text"
+                      value={newAcademyName}
+                      onChange={(e) => setNewAcademyName(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-[12px] focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400"
+                      placeholder="Academy name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[12px] font-medium text-gray-700 mb-1">Description</label>
+                    <textarea
+                      value={newAcademyDescription}
+                      onChange={(e) => setNewAcademyDescription(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-[12px] focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400"
+                      placeholder="Optional description"
+                      rows={3}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[12px] font-medium text-gray-700 mb-2">Icon</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {academyIcons.map((option) => {
+                        const Icon = option.icon
+                        const isSelected = option.value === newAcademyIcon
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setNewAcademyIcon(option.value)}
+                            className={`flex items-center gap-2 border rounded-lg px-2 py-2 text-[12px] transition-colors ${
+                              isSelected
+                                ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                                : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                            }`}
+                          >
+                            <span className="inline-flex h-7 w-7 items-center justify-center rounded-md bg-white">
+                              <Icon className="w-4 h-4" />
+                            </span>
+                            <span className="text-[11px]">{option.label}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+                <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={resetAcademyForm}
+                    disabled={isCreatingAcademy}
+                    className="px-4 py-2 text-[12px] font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={academyFormMode === 'edit' ? updateAcademyType : createAcademyType}
+                    disabled={isCreatingAcademy || !newAcademyName.trim()}
+                    className="px-4 py-2 text-[12px] font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {isCreatingAcademy ? 'Saving...' : academyFormMode === 'edit' ? 'Save changes' : 'Create academy'}
+                  </button>
                 </div>
               </div>
             </div>,
