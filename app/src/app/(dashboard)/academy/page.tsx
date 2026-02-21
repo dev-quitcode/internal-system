@@ -23,6 +23,8 @@ import { format } from 'date-fns'
 type AssignmentProgram = {
   id: number
   program_id: number
+  employee_id: number
+  assigned_by: number | null
   status: string
   assigned_at: string
   program: {
@@ -210,6 +212,8 @@ export default function AcademyPage() {
         assignment:academy_assignments!inner (
           id,
           program_id,
+          employee_id,
+          assigned_by,
           status,
           assigned_at,
           program:academy_programs ( id, name, description, icon )
@@ -284,6 +288,18 @@ export default function AcademyPage() {
       comment: commentText.trim(),
       author_employee_id: employee.id,
     })
+    if (selectedAssignmentPage.assignment.assigned_by) {
+      const authorName =
+        [employee.first_name, employee.last_name].filter(Boolean).join(' ') || employee.email
+      const pageTitle = selectedAssignmentPage.page.title
+      await supabase.from('notifications').insert({
+        recipient_employee_id: selectedAssignmentPage.assignment.assigned_by,
+        actor_employee_id: employee.id,
+        title: 'New academy comment',
+        body: `${authorName} commented on "${pageTitle}".`,
+        link: `/academy/manage?employeeId=${selectedAssignmentPage.assignment.employee_id}`,
+      })
+    }
     setCommentText('')
     setIsCommenting(false)
     loadComments(selectedAssignmentPage.id)
@@ -316,7 +332,7 @@ export default function AcademyPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {groupedPrograms.map((group) => {
               const { completed, total, percent } = progressStats(group.pages)
               const Icon = getAcademyIcon(group.assignment.program.icon)
@@ -336,24 +352,24 @@ export default function AcademyPage() {
               return (
                 <div
                   key={group.assignment.id}
-                  className="relative bg-white rounded-2xl border border-gray-100 p-6 shadow-sm transition-shadow hover:shadow-md hover:border-gray-200"
+                  className="relative bg-white rounded-2xl border border-gray-100 p-5 shadow-sm transition-shadow hover:shadow-md hover:border-gray-200"
                 >
-                  <div className={`absolute top-6 right-6 text-[11px] font-bold px-3 py-1.5 rounded-full uppercase tracking-wide ${statusClass}`}>
+                  <div className={`absolute top-5 right-5 text-[11px] font-bold px-3 py-1.5 rounded-full uppercase tracking-wide ${statusClass}`}>
                     {statusLabelText}
                   </div>
                   <div
-                    className={`h-[46px] w-[46px] mb-5 flex items-center justify-center rounded-xl ${
+                    className={`h-[40px] w-[40px] mb-4 flex items-center justify-center rounded-xl ${
                       isActive || isCompleted ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'
                     }`}
                   >
-                    <Icon className="w-5 h-5" />
+                    <Icon className="w-4 h-4" />
                   </div>
-                  <h2 className="text-[13px] font-semibold text-gray-900 mb-2">{group.assignment.program.name}</h2>
-                  <p className="text-[12px] text-gray-500 leading-5 mb-6">
+                  <h2 className="text-[13px] font-semibold text-gray-900 mb-1">{group.assignment.program.name}</h2>
+                  <p className="text-[12px] text-gray-500 leading-5 mb-4">
                     {group.assignment.program.description || 'Open academy pages'}
                   </p>
 
-                  <div className="mb-6">
+                  <div className="mb-4">
                     <div className="flex items-end justify-between mb-2">
                       <span className="text-[11px] font-semibold text-gray-900">Total Completion</span>
                       <span className="text-[12px] font-semibold text-gray-900">{percent}%</span>
@@ -365,7 +381,7 @@ export default function AcademyPage() {
                       />
                     </div>
                     <span className="text-[11px] text-gray-500 mt-2 block">
-                      {completed} of {total} modules completed
+                      {completed} of {total} pages completed
                     </span>
                   </div>
 
@@ -375,7 +391,7 @@ export default function AcademyPage() {
                       setSelectedProgramId(group.assignment.program_id)
                       setSelectedAssignmentPageId(group.pages[0]?.id ?? null)
                     }}
-                    className={`w-full py-3 rounded-xl text-[12px] font-semibold flex items-center justify-center gap-2 transition-colors ${buttonStyle}`}
+                    className={`w-full py-2.5 rounded-xl text-[12px] font-semibold flex items-center justify-center gap-2 transition-colors ${buttonStyle}`}
                   >
                     {isActive || isCompleted ? 'Continue Learning' : 'Start Academy'}
                     {isActive || isCompleted ? <ArrowRight className="w-4 h-4" /> : null}

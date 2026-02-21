@@ -5,12 +5,20 @@ import { Bell, ChevronDown, Settings, User, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
+import { useEmployee } from '@/lib/hooks/useEmployee'
 
 export default function Topbar() {
   const router = useRouter()
+  const { employee } = useEmployee()
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+  const [notifications, setNotifications] = useState<
+    { id: number; title: string; body: string | null; link: string | null; created_at: string; is_read: boolean }[]
+  >([])
+  const [unreadCount, setUnreadCount] = useState(0)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const notificationsRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -31,14 +39,46 @@ export default function Topbar() {
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Node
+      const clickedOutsideUser = dropdownRef.current ? !dropdownRef.current.contains(target) : true
+      const clickedOutsideNotifications = notificationsRef.current
+        ? !notificationsRef.current.contains(target)
+        : true
+      if (clickedOutsideUser && clickedOutsideNotifications) {
         setIsDropdownOpen(false)
+        setIsNotificationsOpen(false)
       }
     }
 
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
+
+  useEffect(() => {
+    const loadNotifications = async () => {
+      if (!employee) return
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('notifications')
+        .select('id, title, body, link, created_at, is_read')
+        .eq('recipient_employee_id', employee.id)
+        .order('created_at', { ascending: false })
+        .limit(10)
+
+      const rows = (data || []) as {
+        id: number
+        title: string
+        body: string | null
+        link: string | null
+        created_at: string
+        is_read: boolean
+      }[]
+      setNotifications(rows)
+      setUnreadCount(rows.filter((row) => !row.is_read).length)
+    }
+
+    loadNotifications()
+  }, [employee])
 
   const handleSignOut = async () => {
     const supabase = createClient()
@@ -71,10 +111,59 @@ export default function Topbar() {
         {/* Right side */}
         <div className="flex items-center gap-3">
           {/* Notifications */}
-          <button className="relative p-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
-          </button>
+          <div ref={notificationsRef} className="relative">
+            <button
+              onClick={() => setIsNotificationsOpen((prev) => !prev)}
+              className="relative p-2.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+            >
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-semibold rounded-full flex items-center justify-center ring-2 ring-white">
+                  {unreadCount}
+                </span>
+              )}
+            </button>
+
+            {isNotificationsOpen && (
+              <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-200 overflow-hidden">
+                <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                  <p className="text-sm font-semibold text-gray-900">Notifications</p>
+                  <p className="text-xs text-gray-500">
+                    {unreadCount ? `${unreadCount} unread` : 'All caught up'}
+                  </p>
+                </div>
+                <div className="max-h-80 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-xs text-gray-500">No notifications yet.</div>
+                  ) : (
+                    notifications.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          if (item.link) router.push(item.link)
+                        }}
+                        className="block w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-50 last:border-b-0"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-gray-900">{item.title}</p>
+                          {!item.is_read && <span className="w-2 h-2 rounded-full bg-red-500" />}
+                        </div>
+                        {item.body && <p className="text-xs text-gray-500 mt-1">{item.body}</p>}
+                        <p className="text-[11px] text-gray-400 mt-1">
+                          {new Date(item.created_at).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: '2-digit',
+                            year: 'numeric',
+                          })}
+                        </p>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Divider */}
           <div className="w-px h-8 bg-gray-200" />

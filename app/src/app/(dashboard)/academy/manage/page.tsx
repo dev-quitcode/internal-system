@@ -69,7 +69,7 @@ type EmployeeInfo = {
 }
 
 export default function AcademyManagePage() {
-  useEmployee()
+  const { employee } = useEmployee()
   const searchParams = useSearchParams()
   const employeeIdParam = searchParams.get('employeeId')
   const employeeId = employeeIdParam ? Number(employeeIdParam) : null
@@ -250,7 +250,7 @@ export default function AcademyManagePage() {
     try {
       const { data: existingAssignment } = await supabase
         .from('academy_assignments')
-        .select('id')
+        .select('id, assigned_by')
         .eq('employee_id', employeeId)
         .eq('program_id', selectedProgramId)
         .order('id', { ascending: false })
@@ -267,12 +267,15 @@ export default function AcademyManagePage() {
             program_id: selectedProgramId,
             status: 'not_started',
             assigned_at: new Date().toISOString(),
+            assigned_by: employee?.id ?? null,
           })
           .select('id')
           .single()
 
         if (createError) throw createError
         assignmentId = created?.id
+      } else if (!existingAssignment?.assigned_by && employee?.id) {
+        await supabase.from('academy_assignments').update({ assigned_by: employee.id }).eq('id', assignmentId)
       }
 
       if (!assignmentId) throw new Error('Failed to create assignment')
