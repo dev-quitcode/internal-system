@@ -49,8 +49,7 @@ import json from 'highlight.js/lib/languages/json'
 
 type Category = { id: number; name: string; description: string | null }
 type Page = { id: number; title: string; page_type: 'THEORY' | 'TASK'; category_id: number | null; content?: any; updated_at?: string | null }
-type AcademyType = { id: number; name: string; description: string | null; icon: string | null }
-type Program = { id: number; name: string; description: string | null; type_id: number | null }
+type Program = { id: number; name: string; description: string | null; icon: string | null }
 type ProgramPage = { id: number; page_id: number; order_index: number; is_required: boolean; page: Page & { category: Category | null } }
 
 const lowlight = createLowlight()
@@ -121,7 +120,6 @@ export default function AcademySettingsPage() {
   const supabase = createClient()
 
   const [categories, setCategories] = useState<Category[]>([])
-  const [academyTypes, setAcademyTypes] = useState<AcademyType[]>([])
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [newPageTitle, setNewPageTitle] = useState('')
@@ -129,7 +127,6 @@ export default function AcademySettingsPage() {
   const [isSaving, setIsSaving] = useState(false)
 
   const [programs, setPrograms] = useState<Program[]>([])
-  const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null)
   const [selectedProgramId, setSelectedProgramId] = useState<number | null>(null)
   const [programPages, setProgramPages] = useState<ProgramPage[]>([])
   const [programPagesError, setProgramPagesError] = useState<string | null>(null)
@@ -216,10 +213,6 @@ export default function AcademySettingsPage() {
     () => programs.find((program) => program.id === selectedProgramId) ?? null,
     [programs, selectedProgramId]
   )
-  const selectedType = useMemo(
-    () => academyTypes.find((type) => type.id === selectedTypeId) ?? null,
-    [academyTypes, selectedTypeId]
-  )
 
   const emptyDragImage = useMemo(() => {
     if (typeof window === 'undefined') return null
@@ -266,11 +259,6 @@ export default function AcademySettingsPage() {
     }
   }, [editor])
 
-  const programsForSelectedType = useMemo(
-    () => programs.filter((program) => program.type_id === selectedTypeId),
-    [programs, selectedTypeId]
-  )
-
   useEffect(() => {
     loadInitial()
   }, [])
@@ -282,15 +270,6 @@ export default function AcademySettingsPage() {
       setProgramPages([])
     }
   }, [selectedProgramId])
-
-  useEffect(() => {
-    if (!selectedTypeId) {
-      setSelectedProgramId(null)
-      return
-    }
-    const firstProgram = programs.find((program) => program.type_id === selectedTypeId) ?? null
-    setSelectedProgramId(firstProgram?.id ?? null)
-  }, [selectedTypeId, programs])
 
   const loadInitial = async () => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -304,20 +283,17 @@ export default function AcademySettingsPage() {
       Authorization: `Bearer ${token}`,
     }
 
-    const [catRes, typeRes, programRes] = await Promise.all([
+    const [catRes, programRes] = await Promise.all([
       fetch(`${url}/rest/v1/academy_categories?select=*&order=sort_order.asc`, { headers }),
-      fetch(`${url}/rest/v1/academy_types?select=*&order=id.asc`, { headers }),
       fetch(`${url}/rest/v1/academy_programs?select=*&order=id.asc`, { headers }),
     ])
 
-    const [catData, typeData, programData] = await Promise.all([
+    const [catData, programData] = await Promise.all([
       catRes.ok ? catRes.json() : [],
-      typeRes.ok ? typeRes.json() : [],
       programRes.ok ? programRes.json() : [],
     ])
 
     setCategories((catData || []) as Category[])
-    setAcademyTypes((typeData || []) as AcademyType[])
     setPrograms((programData || []) as Program[])
   }
 
@@ -360,12 +336,12 @@ export default function AcademySettingsPage() {
     }
   }
 
-  const createAcademyType = async () => {
+  const createAcademyProgram = async () => {
     if (!newAcademyName.trim()) return
     setIsCreatingAcademy(true)
     try {
       const { data, error } = await supabase
-        .from('academy_types')
+        .from('academy_programs')
         .insert({
           name: newAcademyName.trim(),
           description: newAcademyDescription.trim() || null,
@@ -374,22 +350,22 @@ export default function AcademySettingsPage() {
         .select()
         .single()
       if (error) {
-        console.error('Failed to create academy type:', error)
+        console.error('Failed to create academy program:', error)
         return
       }
-      if (data) setAcademyTypes((prev) => [...prev, data as AcademyType])
+      if (data) setPrograms((prev) => [...prev, data as Program])
       resetAcademyForm()
     } finally {
       setIsCreatingAcademy(false)
     }
   }
 
-  const updateAcademyType = async () => {
+  const updateAcademyProgram = async () => {
     if (!academyFormId || !newAcademyName.trim()) return
     setIsCreatingAcademy(true)
     try {
       const { data, error } = await supabase
-        .from('academy_types')
+        .from('academy_programs')
         .update({
           name: newAcademyName.trim(),
           description: newAcademyDescription.trim() || null,
@@ -399,11 +375,11 @@ export default function AcademySettingsPage() {
         .select()
         .single()
       if (error) {
-        console.error('Failed to update academy type:', error)
+        console.error('Failed to update academy program:', error)
         return
       }
       if (data) {
-        setAcademyTypes((prev) => prev.map((item) => (item.id === academyFormId ? (data as AcademyType) : item)))
+        setPrograms((prev) => prev.map((item) => (item.id === academyFormId ? (data as Program) : item)))
       }
       resetAcademyForm()
     } finally {
@@ -430,12 +406,12 @@ export default function AcademySettingsPage() {
   }
 
   const openEditAcademy = () => {
-    if (!selectedType) return
+    if (!selectedProgram) return
     setAcademyFormMode('edit')
-    setAcademyFormId(selectedType.id)
-    setNewAcademyName(selectedType.name)
-    setNewAcademyDescription(selectedType.description ?? '')
-    setNewAcademyIcon(selectedType.icon ?? 'graduation-cap')
+    setAcademyFormId(selectedProgram.id)
+    setNewAcademyName(selectedProgram.name)
+    setNewAcademyDescription(selectedProgram.description ?? '')
+    setNewAcademyIcon(selectedProgram.icon ?? 'graduation-cap')
     setIsAcademyModalOpen(true)
   }
 
@@ -588,7 +564,7 @@ export default function AcademySettingsPage() {
                   </p>
                 </div>
           <div className="flex items-center gap-3">
-            {!selectedTypeId && (
+            {!selectedProgramId && (
               <button
                 type="button"
                 onClick={openCreateAcademy}
@@ -599,7 +575,7 @@ export default function AcademySettingsPage() {
                 Add academy
               </button>
             )}
-            {selectedTypeId && !showEditor && (
+            {selectedProgramId && !showEditor && (
               <button
                 type="button"
                 onClick={openEditAcademy}
@@ -609,7 +585,7 @@ export default function AcademySettingsPage() {
                 Edit academy
               </button>
             )}
-            {!showEditor && selectedTypeId && (
+            {!showEditor && selectedProgramId && (
               <button
                 type="button"
                 onClick={() => {
@@ -651,31 +627,31 @@ export default function AcademySettingsPage() {
           </div>
         </div>
 
-        {!selectedTypeId ? (
+        {!selectedProgramId ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {academyTypes.map((type) => (
+            {programs.map((program) => (
               <button
-                key={type.id}
-                onClick={() => setSelectedTypeId(type.id)}
+                key={program.id}
+                onClick={() => setSelectedProgramId(program.id)}
                 className="text-left rounded-2xl border border-gray-200 p-5 hover:shadow-sm transition-shadow"
               >
                 <div className="flex items-center gap-2">
                   <div className="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
                     {(() => {
-                      const match = academyIcons.find((icon) => icon.value === type.icon)
+                      const match = academyIcons.find((icon) => icon.value === program.icon)
                       const Icon = match?.icon ?? GraduationCap
                       return <Icon className="w-4 h-4" />
                     })()}
                   </div>
-                  <div className="text-[13px] font-semibold text-gray-900">{type.name}</div>
+                  <div className="text-[13px] font-semibold text-gray-900">{program.name}</div>
                 </div>
                 <div className="text-[12px] text-gray-500 mt-1">
-                  {type.description || 'Open academy pages'}
+                  {program.description || 'Open academy pages'}
                 </div>
               </button>
             ))}
-            {academyTypes.length === 0 && (
-              <div className="text-[12px] text-gray-500">No academy types yet.</div>
+            {programs.length === 0 && (
+              <div className="text-[12px] text-gray-500">No academy programs yet.</div>
             )}
           </div>
         ) : (
@@ -947,6 +923,13 @@ export default function AcademySettingsPage() {
                         />
                       </div>
                       <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedProgramId(null)}
+                          className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-[12px] leading-4 font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50"
+                        >
+                          Change academy
+                        </button>
                         <button
                           type="button"
                           className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-[12px] leading-4 font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50"
@@ -1225,7 +1208,7 @@ export default function AcademySettingsPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={academyFormMode === 'edit' ? updateAcademyType : createAcademyType}
+                    onClick={academyFormMode === 'edit' ? updateAcademyProgram : createAcademyProgram}
                     disabled={isCreatingAcademy || !newAcademyName.trim()}
                     className="px-4 py-2 text-[12px] font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50"
                   >

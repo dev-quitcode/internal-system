@@ -29,8 +29,7 @@ type AssignmentProgram = {
     id: number
     name: string
     description: string | null
-    type_id: number | null
-    type?: { id: number; icon: string | null } | null
+    icon: string | null
   }
 }
 
@@ -213,7 +212,7 @@ export default function AcademyPage() {
           program_id,
           status,
           assigned_at,
-          program:academy_programs ( id, name, description, type_id, type:academy_types ( id, icon ) )
+          program:academy_programs ( id, name, description, icon )
         ),
         page:academy_pages ( id, title, page_type, content, category:academy_categories ( id, name ) )
       `
@@ -320,7 +319,7 @@ export default function AcademyPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             {groupedPrograms.map((group) => {
               const { completed, total, percent } = progressStats(group.pages)
-              const Icon = getAcademyIcon(group.assignment.program.type?.icon)
+              const Icon = getAcademyIcon(group.assignment.program.icon)
               const isActive = percent > 0 && percent < 100
               const isCompleted = percent === 100 && total > 0
               const statusLabelText = isCompleted ? 'Completed' : isActive ? 'In Progress' : 'Not Started'
