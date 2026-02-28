@@ -10,6 +10,7 @@ import {
   Calendar,
   User,
   Users,
+  Building2,
   FileText,
   Lightbulb,
   GraduationCap,
@@ -42,6 +43,7 @@ const navigation: NavItem[] = [
   { name: 'Leaves', href: '/leaves', icon: Calendar },
   { name: 'Profile', href: '/profile', icon: User },
   { name: 'Team', href: '/team', icon: Users },
+  { name: 'Clients', href: '/clients', icon: Building2 },
   { name: 'Academy', href: '/academy', icon: GraduationCap },
   { name: 'Academy Settings', href: '/academy-settings', icon: BookOpen },
   {
